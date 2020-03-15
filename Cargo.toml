@@ -12,3 +12,4 @@ rand = "*"
 num_cpus = "*"
 
 [dev-dependencies]
+quickcheck = "*"

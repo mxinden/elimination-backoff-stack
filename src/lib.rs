@@ -36,3 +36,50 @@ impl<T> Stack<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::Rng;
+    use quickcheck::{Arbitrary, Gen, quickcheck};
+
+    #[derive(Clone, Debug)]
+    enum Operation<T> {
+        Push(T),
+        Pop
+    }
+
+    impl<T: Arbitrary> Arbitrary for Operation<T> {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            if g.gen::<bool>() {
+                Operation::Push(Arbitrary::arbitrary(g))
+            } else {
+                Operation::Pop
+            }
+        }
+    }
+
+    #[test]
+    fn quickcheck_single_threaded_compare_to_vec() {
+        fn prop(operations: Vec<Operation<usize>>) {
+            let elimination_backoff_stack: Stack<usize> = Stack::new();
+            let mut vec_stack: Vec<usize> = vec![];
+
+            println!("operations len: {:?}", operations.len());
+
+            for operation in operations {
+                match operation {
+                    Operation::Push(item) => {
+                        elimination_backoff_stack.push(item.clone());
+                        vec_stack.push(item);
+                    },
+                    Operation::Pop => {
+                        assert_eq!(elimination_backoff_stack.pop(), vec_stack.pop())
+                    }
+                }
+            }
+        }
+
+        quickcheck(prop as fn(_));
+    }
+}
