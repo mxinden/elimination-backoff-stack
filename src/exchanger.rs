@@ -70,6 +70,7 @@ impl<T> Exchanger<T> {
             }
         }
 
+        // TODO: Break this loop at some point to retry the stack.
         loop {
             let current_item = self.item.load(SeqCst, &guard);
 

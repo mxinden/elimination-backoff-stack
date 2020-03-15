@@ -6,8 +6,8 @@ pub struct EliminationArray<T> {
 }
 
 impl<T> EliminationArray<T> {
-    pub fn new(capacity: usize) -> Self {
-        let exchangers = (0..capacity).map(|_| Exchanger::new()).collect();
+    pub fn new() -> Self {
+        let exchangers = (0..num_cpus::get()).map(|_| Exchanger::new()).collect();
 
         Self { exchangers }
     }
@@ -50,7 +50,7 @@ mod tests {
 
         let barrier = Arc::new(Barrier::new(num_cpus::get() / 2 + 1));
         let mut handlers = vec![];
-        let elimination_array = Arc::new(EliminationArray::new(num_cpus::get()));
+        let elimination_array = Arc::new(EliminationArray::new());
 
         // Put threads.
         for _ in 0..(num_cpus::get() / 2) {
