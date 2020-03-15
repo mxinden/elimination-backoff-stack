@@ -158,7 +158,7 @@ mod tests {
             while t1_exchanger.exchange_put(()).is_err() {}
         });
 
-        assert_eq!(exchanger.exchange_pop(), Ok(()));
+        while exchanger.exchange_pop().is_err() {};
 
         t1.join().unwrap();
     }
