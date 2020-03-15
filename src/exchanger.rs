@@ -133,14 +133,27 @@ impl<T> Exchanger<T> {
 // TODO: Rethink this implementation. What about the ManuallyDrop wrapping Item?
 impl<T> Drop for Exchanger<T> {
     fn drop(&mut self) {
-        // By now the DataStructure lives only in our thread and we are sure we
-        // don't hold any Shared or & to it ourselves.
+
+        let owned: Owned<_> ;
         unsafe {
-            // Make sure to access `Item<_>` and not `ManuallyDrop<Item<_>>`.
-            let item: &mut Item<T> =
-                &mut *std::mem::replace(&mut self.item, Atomic::null()).into_owned();
-            drop(item);
+            // By now the DataStructure lives only in our thread and we are sure we
+            // don't hold any Shared or & to it ourselves.
+            owned = std::mem::replace(&mut self.item, Atomic::null()).into_owned();
         }
+
+        let boxed: Box<_> = owned.into_box();
+        let mut item: Item<_> = *boxed;
+
+        // Make sure to access `Item<_>` and not `ManuallyDrop<Item<_>>`.
+        match item {
+            Item::Empty => {},
+            Item::Busy => {},
+            Item::Waiting(ref mut item) => {
+                unsafe { ManuallyDrop::drop(item) };
+            }
+        }
+
+        drop(item);
     }
 }
 
