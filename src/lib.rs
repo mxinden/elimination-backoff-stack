@@ -114,7 +114,7 @@ mod tests {
     use std::thread;
 
     #[test]
-    fn put_pop() {
+    fn put_pop_2_threads() {
         let exchanger = Arc::new(Exchanger::new());
 
         let t1_exchanger = exchanger.clone();
@@ -125,5 +125,32 @@ mod tests {
         assert_eq!(exchanger.exchange_pop(), ());
 
         t1.join().unwrap();
+    }
+
+    #[test]
+    fn put_pop_4_threads() {
+        let mut handlers = vec![];
+        let exchanger = Arc::new(Exchanger::new());
+
+        let t1_exchanger = exchanger.clone();
+        handlers.push(thread::spawn(move || {
+            t1_exchanger.exchange_put(());
+        }));
+
+        let t2_exchanger = exchanger.clone();
+        handlers.push(thread::spawn(move || {
+            t2_exchanger.exchange_put(());
+        }));
+
+        let t3_exchanger = exchanger.clone();
+        handlers.push(thread::spawn(move || {
+            assert_eq!(t3_exchanger.exchange_pop(), ());
+        }));
+
+        assert_eq!(exchanger.exchange_pop(), ());
+
+        for handler in handlers.into_iter() {
+            handler.join().unwrap();
+        }
     }
 }
