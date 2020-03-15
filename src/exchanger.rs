@@ -3,6 +3,8 @@ use std::mem::ManuallyDrop;
 use std::ptr;
 use std::sync::atomic::Ordering::SeqCst;
 
+const MAX_RETRIES: u32 = 10;
+
 // TODO: crossbeam::epoch::Shared has a with_tag method. Can this mirror the
 // Java AtomicStampedReference?
 enum Item<T> {
@@ -23,12 +25,26 @@ impl<T> Exchanger<T> {
         }
     }
 
-    pub fn exchange_put(&self, item: T) {
+    pub fn exchange_put(&self, item: T) -> Result<(), T> {
+        let mut tries = 0;
         let mut new_item = Owned::new(Item::Waiting(ManuallyDrop::new(item)));
 
+        // TODO: Should we reuse this guard? Might be better performing when
+        // calling `exchange_put` in a loop.
         let guard = epoch::pin();
 
         loop {
+            tries+=1;
+            if tries == MAX_RETRIES {
+                let item = match std::mem::replace(&mut *new_item, Item::Empty) {
+                    Item::Empty => unreachable!(),
+                    Item::Waiting(item) => ManuallyDrop::into_inner(item),
+                    Item::Busy => unreachable!(),
+                };
+
+                return Err(item);
+            }
+
             let current_item = self.item.load(SeqCst, &guard);
 
             match unsafe { current_item.as_ref() } {
@@ -45,10 +61,10 @@ impl<T> Exchanger<T> {
                     }
                 }
                 Some(&Item::Waiting(_)) => {
-                    unimplemented!();
+                    continue
                 }
                 Some(&Item::Busy) => {
-                    unimplemented!();
+                    continue
                 }
                 None => unimplemented!(),
             }
@@ -69,17 +85,23 @@ impl<T> Exchanger<T> {
                         .compare_and_set(current_item, Owned::new(Item::Empty), SeqCst, &guard)
                         .expect("we should be the only one compare and swapping this value");
                     unsafe { guard.defer_destroy(current_item) };
-                    return;
+                    return Ok(());
                 }
                 None => unimplemented!(),
             }
         }
     }
 
-    pub fn exchange_pop(&self) -> T {
+    pub fn exchange_pop(&self) -> Result<T, ()> {
+        let mut tries = 0;
         let guard = epoch::pin();
 
         loop {
+            tries+=1;
+            if tries == MAX_RETRIES {
+                return Err(());
+            }
+
             let current_item = self.item.load(SeqCst, &guard);
 
             match unsafe { current_item.as_ref() } {
@@ -94,12 +116,12 @@ impl<T> Exchanger<T> {
                     {
                         unsafe {
                             guard.defer_destroy(current_item);
-                            return ManuallyDrop::into_inner(ptr::read(&(*item)));
+                            return Ok(ManuallyDrop::into_inner(ptr::read(&(*item))));
                         }
                     }
                 }
                 Some(&Item::Busy) => {
-                    unimplemented!();
+                    continue;
                 }
                 None => unimplemented!(),
             }
@@ -133,10 +155,10 @@ mod tests {
 
         let t1_exchanger = exchanger.clone();
         let t1 = thread::spawn(move || {
-            t1_exchanger.exchange_put(());
+            while t1_exchanger.exchange_put(()).is_err() {}
         });
 
-        assert_eq!(exchanger.exchange_pop(), ());
+        assert_eq!(exchanger.exchange_pop(), Ok(()));
 
         t1.join().unwrap();
     }
@@ -148,20 +170,20 @@ mod tests {
 
         let t1_exchanger = exchanger.clone();
         handlers.push(thread::spawn(move || {
-            t1_exchanger.exchange_put(());
+            while t1_exchanger.exchange_put(()).is_err() {}
         }));
 
         let t2_exchanger = exchanger.clone();
         handlers.push(thread::spawn(move || {
-            t2_exchanger.exchange_put(());
+            while t2_exchanger.exchange_put(()).is_err() {}
         }));
 
         let t3_exchanger = exchanger.clone();
         handlers.push(thread::spawn(move || {
-            assert_eq!(t3_exchanger.exchange_pop(), ());
+            while t3_exchanger.exchange_pop().is_err() {}
         }));
 
-        assert_eq!(exchanger.exchange_pop(), ());
+        while exchanger.exchange_pop().is_err() {}
 
         for handler in handlers.into_iter() {
             handler.join().unwrap();

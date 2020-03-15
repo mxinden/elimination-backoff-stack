@@ -8,3 +8,7 @@ edition = "2018"
 
 [dependencies]
 crossbeam = "*"
+rand = "*"
+
+[dev-dependencies]
+num_cpus = "*"
