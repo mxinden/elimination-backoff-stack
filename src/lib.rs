@@ -21,7 +21,7 @@ impl<T> Stack<T> {
     // TODO: Be consistent across the crate. Either `put` or `push`.
     pub fn push(&self, item: T) {
         match self.stack.push(item) {
-            Ok(()) => return,
+            Ok(()) => {},
             // TODO: What if there is contention thus the thread tries the
             // array, but the contention resolves, thus all pop operations go to
             // the stack, find nothing and return `None`.
@@ -64,8 +64,6 @@ mod tests {
         fn prop(operations: Vec<Operation<usize>>) {
             let elimination_backoff_stack: Stack<usize> = Stack::new();
             let mut vec_stack: Vec<usize> = vec![];
-
-            println!("operations len: {:?}", operations.len());
 
             for operation in operations {
                 match operation {

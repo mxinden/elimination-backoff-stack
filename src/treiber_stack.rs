@@ -1,13 +1,11 @@
 // Adapted from https://github.com/crossbeam-rs/crossbeam/blob/master/crossbeam-epoch/examples/treiber_stack.rs
 
 use crossbeam::epoch;
-use crossbeam::utils;
 
 use std::mem::ManuallyDrop;
 use std::ptr;
 use std::sync::atomic::Ordering::{Acquire, Relaxed, Release};
 
-use crossbeam::scope;
 use epoch::{Atomic, Owned};
 
 /// Treiber's lock-free stack.
@@ -34,7 +32,7 @@ impl<T> TreiberStack<T> {
 
     /// Pushes a value on top of the stack.
     pub fn push(&self, t: T) -> Result<(), T> {
-        let mut n = Owned::new(Node {
+        let n = Owned::new(Node {
             data: ManuallyDrop::new(t),
             next: Atomic::null(),
         });
@@ -81,12 +79,6 @@ impl<T> TreiberStack<T> {
             }
             None => Ok(None),
         }
-    }
-
-    /// Returns `true` if the stack is empty.
-    pub fn is_empty(&self) -> bool {
-        let guard = epoch::pin();
-        self.head.load(Acquire, &guard).is_null()
     }
 }
 
