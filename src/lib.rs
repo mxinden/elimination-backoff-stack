@@ -5,6 +5,7 @@ mod treiber_stack;
 use elimination_array::EliminationArray;
 use treiber_stack::TreiberStack;
 
+#[derive(Default)]
 pub struct Stack<T> {
     stack: TreiberStack<T>,
     elimination_array: EliminationArray<T>,

@@ -11,7 +11,7 @@ use epoch::{Atomic, Owned};
 /// Treiber's lock-free stack.
 ///
 /// Usable with any number of producers and consumers.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TreiberStack<T> {
     head: Atomic<Node<T>>,
 }

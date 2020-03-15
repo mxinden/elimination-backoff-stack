@@ -1,6 +1,7 @@
 use crate::exchanger::Exchanger;
 use rand::{thread_rng, Rng};
 
+#[derive(Default)]
 pub struct EliminationArray<T> {
     exchangers: Vec<Exchanger<T>>,
 }
@@ -71,7 +72,7 @@ mod tests {
             let elimination_array = elimination_array.clone();
 
             handlers.push(thread::spawn(move || loop {
-                assert_eq!(elimination_array.exchange_pop(), ());
+                elimination_array.exchange_pop();
             }))
         }
 
