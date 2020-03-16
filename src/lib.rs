@@ -43,6 +43,8 @@ mod tests {
     use super::*;
     use rand::Rng;
     use quickcheck::{Arbitrary, Gen, quickcheck};
+    use std::sync::Arc;
+    use std::thread;
 
     #[derive(Clone, Debug)]
     enum Operation<T> {
@@ -80,5 +82,39 @@ mod tests {
         }
 
         quickcheck(prop as fn(_));
+    }
+
+    /// Scenario: A push operation fails on the lock-free stack due to
+    /// contention on the `head` pointer and thus eludes to the elimination
+    /// array. In case contention is gone instantly all pop operations will hit
+    /// the lock-free stack directly. Thereby the push operation starves.
+    ///
+    /// Ensure that the push operation doesn't starve, e.g. by falling back to
+    /// trying the lock-free stack from the elimination array.
+    ///
+    /// Tested here by spawning only threads that push to the stack. Probability
+    /// for contention is high, thus resulting in some starved push threads in
+    /// the elimination array.
+    #[test]
+    fn ensure_put_does_not_starve_on_array() {
+        let item_count = 10_000;
+
+        let mut handlers = vec![];
+        let stack = Arc::new(Stack::new());
+
+        // Push threads.
+        for _ in 0..num_cpus::get() {
+            let stack = stack.clone();
+
+            handlers.push(thread::spawn(move || {
+                for _ in 0..item_count {
+                    stack.push(());
+                }
+            }))
+        }
+
+        for handler in handlers {
+            handler.join().unwrap();
+        }
     }
 }
