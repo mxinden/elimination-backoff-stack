@@ -34,7 +34,7 @@ impl<T> Exchanger<T> {
         let guard = epoch::pin();
 
         loop {
-            tries+=1;
+            tries += 1;
             if tries == MAX_RETRIES {
                 let item = match std::mem::replace(&mut *new_item, Item::Empty) {
                     Item::Empty => unreachable!(),
@@ -60,12 +60,8 @@ impl<T> Exchanger<T> {
                         Err(e) => new_item = e.new,
                     }
                 }
-                Some(&Item::Waiting(_)) => {
-                    continue
-                }
-                Some(&Item::Busy) => {
-                    continue
-                }
+                Some(&Item::Waiting(_)) => continue,
+                Some(&Item::Busy) => continue,
                 None => unimplemented!(),
             }
         }
@@ -98,7 +94,7 @@ impl<T> Exchanger<T> {
         let guard = epoch::pin();
 
         loop {
-            tries+=1;
+            tries += 1;
             if tries == MAX_RETRIES {
                 return Err(());
             }
@@ -133,8 +129,7 @@ impl<T> Exchanger<T> {
 // TODO: Rethink this implementation. What about the ManuallyDrop wrapping Item?
 impl<T> Drop for Exchanger<T> {
     fn drop(&mut self) {
-
-        let owned: Owned<_> ;
+        let owned: Owned<_>;
         unsafe {
             // By now the DataStructure lives only in our thread and we are sure we
             // don't hold any Shared or & to it ourselves.
@@ -146,8 +141,8 @@ impl<T> Drop for Exchanger<T> {
 
         // Make sure to access `Item<_>` and not `ManuallyDrop<Item<_>>`.
         match item {
-            Item::Empty => {},
-            Item::Busy => {},
+            Item::Empty => {}
+            Item::Busy => {}
             Item::Waiting(ref mut item) => {
                 unsafe { ManuallyDrop::drop(item) };
             }
@@ -168,11 +163,9 @@ mod tests {
         let exchanger = Arc::new(Exchanger::new());
 
         let t1_exchanger = exchanger.clone();
-        let t1 = thread::spawn(move || {
-            while t1_exchanger.exchange_put(()).is_err() {}
-        });
+        let t1 = thread::spawn(move || while t1_exchanger.exchange_put(()).is_err() {});
 
-        while exchanger.exchange_pop().is_err() {};
+        while exchanger.exchange_pop().is_err() {}
 
         t1.join().unwrap();
     }
@@ -193,9 +186,11 @@ mod tests {
         }));
 
         let t3_exchanger = exchanger.clone();
-        handlers.push(thread::spawn(move || {
-            while t3_exchanger.exchange_pop().is_err() {}
-        }));
+        handlers.push(thread::spawn(
+            move || {
+                while t3_exchanger.exchange_pop().is_err() {}
+            },
+        ));
 
         while exchanger.exchange_pop().is_err() {}
 

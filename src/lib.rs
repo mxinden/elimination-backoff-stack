@@ -1,5 +1,5 @@
-mod exchanger;
 mod elimination_array;
+mod exchanger;
 mod treiber_stack;
 
 use elimination_array::EliminationArray;
@@ -22,7 +22,7 @@ impl<T> Stack<T> {
     // TODO: Be consistent across the crate. Either `put` or `push`.
     pub fn push(&self, item: T) {
         match self.stack.push(item) {
-            Ok(()) => {},
+            Ok(()) => {}
             // TODO: What if there is contention thus the thread tries the
             // array, but the contention resolves, thus all pop operations go to
             // the stack, find nothing and return `None`.
@@ -33,7 +33,7 @@ impl<T> Stack<T> {
     pub fn pop(&self) -> Option<T> {
         match self.stack.pop() {
             Ok(item) => item,
-            Err(()) => Some(self.elimination_array.exchange_pop())
+            Err(()) => Some(self.elimination_array.exchange_pop()),
         }
     }
 }
@@ -41,15 +41,15 @@ impl<T> Stack<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use quickcheck::{quickcheck, Arbitrary, Gen};
     use rand::Rng;
-    use quickcheck::{Arbitrary, Gen, quickcheck};
     use std::sync::Arc;
     use std::thread;
 
     #[derive(Clone, Debug)]
     enum Operation<T> {
         Push(T),
-        Pop
+        Pop,
     }
 
     impl<T: Arbitrary> Arbitrary for Operation<T> {
@@ -73,10 +73,8 @@ mod tests {
                     Operation::Push(item) => {
                         elimination_backoff_stack.push(item.clone());
                         vec_stack.push(item);
-                    },
-                    Operation::Pop => {
-                        assert_eq!(elimination_backoff_stack.pop(), vec_stack.pop())
                     }
+                    Operation::Pop => assert_eq!(elimination_backoff_stack.pop(), vec_stack.pop()),
                 }
             }
         }

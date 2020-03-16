@@ -53,7 +53,7 @@ impl<T> TreiberStack<T> {
                 // See:
                 // https://stackoverflow.com/questions/42264041/how-do-i-get-an-owned-value-out-of-a-box
                 Err(ManuallyDrop::into_inner((*e.new.into_box()).data))
-            },
+            }
         }
     }
 
@@ -66,15 +66,12 @@ impl<T> TreiberStack<T> {
             Some(h) => {
                 let next = h.next.load(Relaxed, &guard);
 
-                match self
-                    .head
-                    .compare_and_set(head, next, Release, &guard)
-                {
+                match self.head.compare_and_set(head, next, Release, &guard) {
                     Ok(_) => unsafe {
                         guard.defer_destroy(head);
                         Ok(Some(ManuallyDrop::into_inner(ptr::read(&(*h).data))))
                     },
-                    Err(_) => Err(())
+                    Err(_) => Err(()),
                 }
             }
             None => Ok(None),
