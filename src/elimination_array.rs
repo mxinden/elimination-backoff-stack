@@ -42,28 +42,24 @@ impl<T> EliminationArray<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Arc, Barrier};
+    use std::sync::Arc;
     use std::thread;
 
     #[test]
     fn put_pop_num_cpus() {
         let item_count = 10_000;
 
-        let barrier = Arc::new(Barrier::new(num_cpus::get() / 2 + 1));
         let mut handlers = vec![];
         let elimination_array = Arc::new(EliminationArray::new());
 
         // Put threads.
         for _ in 0..(num_cpus::get() / 2) {
-            let barrier = barrier.clone();
             let elimination_array = elimination_array.clone();
 
             handlers.push(thread::spawn(move || {
                 for _ in 0..item_count {
                     elimination_array.exchange_put(());
                 }
-
-                barrier.wait();
             }))
         }
 
@@ -71,11 +67,15 @@ mod tests {
         for _ in 0..(num_cpus::get() / 2) {
             let elimination_array = elimination_array.clone();
 
-            handlers.push(thread::spawn(move || loop {
-                elimination_array.exchange_pop();
+            handlers.push(thread::spawn(move || {
+                for _ in 0..item_count {
+                    elimination_array.exchange_pop();
+                }
             }))
         }
 
-        barrier.wait();
+        for handler in handlers {
+            handler.join().unwrap();
+        }
     }
 }
