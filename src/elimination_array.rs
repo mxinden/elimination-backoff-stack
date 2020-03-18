@@ -16,8 +16,8 @@ impl<T> EliminationArray<T> {
         Self { exchangers }
     }
 
-    pub fn exchange_put(&self, item: T) -> Result<(), T> {
-        self.rnd_exchanger().exchange_put(item)
+    pub fn exchange_push(&self, item: T) -> Result<(), T> {
+        self.rnd_exchanger().exchange_push(item)
     }
 
     pub fn exchange_pop(&self) -> Result<T, ()> {
@@ -37,19 +37,19 @@ mod tests {
     use std::thread;
 
     #[test]
-    fn put_pop_num_cpus() {
+    fn push_pop_num_cpus() {
         let item_count = 10_000;
 
         let mut handlers = vec![];
         let elimination_array = Arc::new(EliminationArray::new());
 
-        // Put threads.
+        // Push threads.
         for _ in 0..(num_cpus::get() / 2) {
             let elimination_array = elimination_array.clone();
 
             handlers.push(thread::spawn(move || {
                 for _ in 0..item_count {
-                    while elimination_array.exchange_put(()).is_err() {}
+                    while elimination_array.exchange_push(()).is_err() {}
                 }
             }))
         }

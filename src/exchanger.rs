@@ -29,12 +29,12 @@ impl<T> Exchanger<T> {
         }
     }
 
-    pub fn exchange_put(&self, item: T) -> Result<(), T> {
+    pub fn exchange_push(&self, item: T) -> Result<(), T> {
         let mut tries = 0;
         let mut new_item = Owned::new(Item::Waiting(ManuallyDrop::new(item)));
 
         // TODO: Should we reuse this guard? Might be better performing when
-        // calling `exchange_put` in a loop.
+        // calling `exchange_push` in a loop.
         let guard = epoch::pin();
 
         loop {
@@ -185,11 +185,11 @@ mod tests {
     use std::thread;
 
     #[test]
-    fn put_pop_2_threads() {
+    fn push_pop_2_threads() {
         let exchanger = Arc::new(Exchanger::new());
 
         let t1_exchanger = exchanger.clone();
-        let t1 = thread::spawn(move || while t1_exchanger.exchange_put(()).is_err() {});
+        let t1 = thread::spawn(move || while t1_exchanger.exchange_push(()).is_err() {});
 
         while exchanger.exchange_pop().is_err() {}
 
@@ -197,18 +197,18 @@ mod tests {
     }
 
     #[test]
-    fn put_pop_4_threads() {
+    fn push_pop_4_threads() {
         let mut handlers = vec![];
         let exchanger = Arc::new(Exchanger::new());
 
         let t1_exchanger = exchanger.clone();
         handlers.push(thread::spawn(move || {
-            while t1_exchanger.exchange_put(()).is_err() {}
+            while t1_exchanger.exchange_push(()).is_err() {}
         }));
 
         let t2_exchanger = exchanger.clone();
         handlers.push(thread::spawn(move || {
-            while t2_exchanger.exchange_put(()).is_err() {}
+            while t2_exchanger.exchange_push(()).is_err() {}
         }));
 
         let t3_exchanger = exchanger.clone();

@@ -19,7 +19,6 @@ impl<T> Stack<T> {
         }
     }
 
-    // TODO: Be consistent across the crate. Either `put` or `push`.
     pub fn push(&self, item: T) {
         let mut item = item;
         loop {
@@ -28,7 +27,7 @@ impl<T> Stack<T> {
                 Err(i) => item = i,
             };
 
-            match self.elimination_array.exchange_put(item) {
+            match self.elimination_array.exchange_push(item) {
                 Ok(()) => return,
                 Err(i) => item = i,
             };
