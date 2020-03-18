@@ -49,6 +49,8 @@ impl<T> Exchanger<T> {
                 return Err(item);
             }
 
+            // TODO: Can we do relaxed here, given that the important part is
+            // further below with compare_and set?
             let current_item = self.item.load(SeqCst, &guard);
 
             match unsafe { current_item.as_ref() } {
@@ -73,6 +75,8 @@ impl<T> Exchanger<T> {
         tries = 0;
 
         loop {
+            // TODO: Can we do relaxed here, given that the important part is
+            // further below with compare_and set?
             let current_item = self.item.load(SeqCst, &guard);
 
             tries += 1;
@@ -119,6 +123,8 @@ impl<T> Exchanger<T> {
                 return Err(());
             }
 
+            // TODO: Can we do relaxed here, given that the important part is
+            // further below with compare_and set?
             let current_item = self.item.load(SeqCst, &guard);
 
             match unsafe { current_item.as_ref() } {
