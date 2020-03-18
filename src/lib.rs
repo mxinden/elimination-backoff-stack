@@ -21,19 +21,31 @@ impl<T> Stack<T> {
 
     // TODO: Be consistent across the crate. Either `put` or `push`.
     pub fn push(&self, item: T) {
-        match self.stack.push(item) {
-            Ok(()) => {}
-            // TODO: What if there is contention thus the thread tries the
-            // array, but the contention resolves, thus all pop operations go to
-            // the stack, find nothing and return `None`.
-            Err(item) => self.elimination_array.exchange_put(item),
+        let mut item = item;
+        loop {
+            match self.stack.push(item) {
+                Ok(()) => return,
+                Err(i) => item = i,
+            };
+
+            match self.elimination_array.exchange_put(item) {
+                Ok(()) => return,
+                Err(i) => item = i,
+            };
         }
     }
 
     pub fn pop(&self) -> Option<T> {
-        match self.stack.pop() {
-            Ok(item) => item,
-            Err(()) => Some(self.elimination_array.exchange_pop()),
+        loop {
+            match self.stack.pop() {
+                Ok(item) => return item,
+                Err(()) => {}
+            };
+
+            match self.elimination_array.exchange_pop() {
+                Ok(item) => return Some(item),
+                Err(()) => {}
+            };
         }
     }
 }
@@ -82,6 +94,7 @@ mod tests {
         quickcheck(prop as fn(_));
     }
 
+    // TODO: What about pop? Does it starve?
     /// Scenario: A push operation fails on the lock-free stack due to
     /// contention on the `head` pointer and thus eludes to the elimination
     /// array. In case contention is gone instantly all pop operations will hit

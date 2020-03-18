@@ -3,6 +3,10 @@ use std::mem::ManuallyDrop;
 use std::ptr;
 use std::sync::atomic::Ordering::SeqCst;
 
+// TODO: Introduce adaptive spinning.
+//
+// TODO: How about a trait `Strategy` that one reports failures to and asks
+// whether it is worth retrying.
 const MAX_RETRIES: u32 = 10;
 
 // TODO: crossbeam::epoch::Shared has a with_tag method. Can this mirror the
@@ -66,16 +70,32 @@ impl<T> Exchanger<T> {
             }
         }
 
-        // TODO: Break this loop at some point to retry the stack.
+        tries = 0;
+
         loop {
             let current_item = self.item.load(SeqCst, &guard);
+
+            tries += 1;
 
             match unsafe { current_item.as_ref() } {
                 Some(&Item::Empty) => {
                     panic!("only we can set it back to empty");
                 }
-                Some(&Item::Waiting(_)) => {
-                    continue;
+                Some(&Item::Waiting(ref item)) => {
+                    if tries < MAX_RETRIES {
+                        continue;
+                    }
+
+                    if self
+                        .item
+                        .compare_and_set(current_item, Owned::new(Item::Empty), SeqCst, &guard)
+                        .is_ok()
+                    {
+                        unsafe {
+                            guard.defer_destroy(current_item);
+                            return Err(ManuallyDrop::into_inner(ptr::read(&(*item))));
+                        }
+                    }
                 }
                 Some(&Item::Busy) => {
                     self.item

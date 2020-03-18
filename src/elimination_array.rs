@@ -8,29 +8,20 @@ pub struct EliminationArray<T> {
 
 impl<T> EliminationArray<T> {
     pub fn new() -> Self {
+        // TODO: Is num_cpus or num_cpus / 2 the better init? The latter would
+        // cause more heterogeneous as well as homogeneous collisions. The
+        // former being good, the latter bad.
         let exchangers = (0..num_cpus::get()).map(|_| Exchanger::new()).collect();
 
         Self { exchangers }
     }
 
-    pub fn exchange_put(&self, item: T) {
-        let mut item = item;
-
-        loop {
-            match self.rnd_exchanger().exchange_put(item) {
-                Ok(()) => return,
-                Err(i) => item = i,
-            }
-        }
+    pub fn exchange_put(&self, item: T) -> Result<(), T> {
+        self.rnd_exchanger().exchange_put(item)
     }
 
-    pub fn exchange_pop(&self) -> T {
-        loop {
-            match self.rnd_exchanger().exchange_pop() {
-                Ok(item) => return item,
-                Err(()) => continue,
-            }
-        }
+    pub fn exchange_pop(&self) -> Result<T, ()> {
+        self.rnd_exchanger().exchange_pop()
     }
 
     fn rnd_exchanger(&self) -> &Exchanger<T> {
@@ -58,7 +49,7 @@ mod tests {
 
             handlers.push(thread::spawn(move || {
                 for _ in 0..item_count {
-                    elimination_array.exchange_put(());
+                    while elimination_array.exchange_put(()).is_err() {}
                 }
             }))
         }
@@ -69,7 +60,7 @@ mod tests {
 
             handlers.push(thread::spawn(move || {
                 for _ in 0..item_count {
-                    elimination_array.exchange_pop();
+                    while elimination_array.exchange_pop().is_err() {}
                 }
             }))
         }
