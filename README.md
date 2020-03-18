@@ -22,6 +22,16 @@ retrying on the stack again.
 The result is a lock-free stack that is both _linearizable_ and _parallel_.
 
 
+### Silly Benchmark
+
+Criterion test comparing `Arc<Mutex<Vec<_>>>` with
+`elimination_backoff_stack::Stack<_>` on 1, 2, 3, 4 and 8 threads, pushing and
+popping the string "my_test_item" 10_000 times.
+
+
+![Comparing `Arc<Mutex<Vec<_>>>` with `elimination_backoff_stack::Stack`.](./.assets/lines.svg)
+
+
 [1] Treiber, R. Kent. Systems programming: Coping with parallelism. New York:
 International Business Machines Incorporated, Thomas J. Watson Research Center,
 1986.

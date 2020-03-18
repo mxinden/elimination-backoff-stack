@@ -13,3 +13,8 @@ num_cpus = "*"
 
 [dev-dependencies]
 quickcheck = "*"
+criterion = "0.3"
+
+[[bench]]
+name = "lib"
+harness = false
