@@ -1,4 +1,11 @@
-// Adapted from https://github.com/crossbeam-rs/crossbeam/blob/master/crossbeam-epoch/examples/treiber_stack.rs
+//! Treiber stack [1] implementation adapted from [crossbeam example][2]. 
+//!
+//! [1]: Treiber, R. Kent. Systems programming: Coping with parallelism. New
+//! York: International Business Machines Incorporated, Thomas J. Watson
+//! Research Center, 1986.
+//!
+//! [2]:
+//! https://github.com/crossbeam-rs/crossbeam/blob/master/crossbeam-epoch/examples/treiber_stack.rs
 
 use crossbeam::epoch;
 
