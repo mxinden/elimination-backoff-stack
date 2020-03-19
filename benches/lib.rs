@@ -69,7 +69,7 @@ fn bench_stacks(c: &mut Criterion) {
             })
         });
         group.bench_with_input(
-            BenchmarkId::new("EliminationBackoffStack<_>", i),
+            BenchmarkId::new("Arc<EliminationBackoffStack<_>>", i),
             i,
             |b, i| {
                 b.iter(|| {
