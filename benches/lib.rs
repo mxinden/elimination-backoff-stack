@@ -1,5 +1,7 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use elimination_backoff_stack::Stack as EliminationBackoffStack;
+use elimination_backoff_stack::{
+    strategy::NoEliminationStrategy, PopStrategy, PushStrategy, Stack as EliminationBackoffStack,
+};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -8,7 +10,12 @@ trait Stack<T: Send>: Send + Sync + Clone {
     fn pop(&self) -> Option<T>;
 }
 
-impl<T: Send + Sync> Stack<T> for Arc<EliminationBackoffStack<T>> {
+impl<T, PushS, PopS> Stack<T> for Arc<EliminationBackoffStack<T, PushS, PopS>>
+where
+    T: Send + Sync,
+    PushS: PushStrategy + Send + Sync,
+    PopS: PopStrategy + Send + Sync,
+{
     fn push(&self, item: T) {
         EliminationBackoffStack::push(self, item);
     }
@@ -73,7 +80,21 @@ fn bench_stacks(c: &mut Criterion) {
             i,
             |b, i| {
                 b.iter(|| {
-                    let stack = Arc::new(EliminationBackoffStack::new());
+                    let stack = Arc::new(EliminationBackoffStack::<_>::new());
+                    benchmark(stack, *i, item_count);
+                })
+            },
+        );
+        group.bench_with_input(
+            BenchmarkId::new("Arc<EliminationBackoffStack<_, NoEliminationStrategy>>", i),
+            i,
+            |b, i| {
+                b.iter(|| {
+                    let stack = Arc::new(EliminationBackoffStack::<
+                        _,
+                        NoEliminationStrategy,
+                        NoEliminationStrategy,
+                    >::new());
                     benchmark(stack, *i, item_count);
                 })
             },
