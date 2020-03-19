@@ -1,52 +1,90 @@
 mod elimination_array;
 mod exchanger;
+pub mod strategy;
 mod treiber_stack;
 
 use elimination_array::EliminationArray;
+use std::marker::PhantomData;
+use strategy::DefaultStrategy;
 use treiber_stack::TreiberStack;
 
 #[derive(Default)]
-pub struct Stack<T> {
+pub struct Stack<T, PushS = DefaultStrategy, PopS = DefaultStrategy> {
     stack: TreiberStack<T>,
     elimination_array: EliminationArray<T>,
+    phantom: PhantomData<(PushS, PopS)>,
 }
 
-impl<T> Stack<T> {
+impl<T, PushS, PopS> Stack<T, PushS, PopS>
+where
+    PushS: PushStrategy,
+    PopS: PopStrategy,
+{
     pub fn new() -> Self {
         Self {
             stack: TreiberStack::new(),
             elimination_array: EliminationArray::new(),
+            phantom: PhantomData,
         }
     }
 
     pub fn push(&self, item: T) {
+        let mut strategy = PushS::new();
+
         let mut item = item;
+
         loop {
             match self.stack.push(item) {
                 Ok(()) => return,
                 Err(i) => item = i,
             };
 
-            match self.elimination_array.exchange_push(item) {
-                Ok(()) => return,
-                Err(i) => item = i,
-            };
+            if strategy.use_elimination_array() {
+                match self.elimination_array.exchange_push(item) {
+                    Ok(()) => return,
+                    Err(i) => item = i,
+                };
+            }
         }
     }
 
     pub fn pop(&self) -> Option<T> {
+        let mut strategy = PushS::new();
+
         loop {
             match self.stack.pop() {
                 Ok(item) => return item,
                 Err(()) => {}
             };
 
-            match self.elimination_array.exchange_pop() {
-                Ok(item) => return Some(item),
-                Err(()) => {}
-            };
+            if strategy.use_elimination_array() {
+                match self.elimination_array.exchange_pop() {
+                    Ok(item) => return Some(item),
+                    Err(()) => {}
+                };
+            }
         }
     }
+}
+
+/// Strategy for push operations.
+pub trait PushStrategy {
+    fn new() -> Self;
+
+    /// Decide whether the stack should try eliminating the push operation on
+    /// the elimination array next. Is called each time such elimination is
+    /// possible.
+    fn use_elimination_array(&mut self) -> bool;
+}
+
+/// Strategy for pop operations.
+pub trait PopStrategy {
+    fn new() -> Self;
+
+    /// Decide whether the stack should try eliminating the pop operation on the
+    /// elimination array next. Is called each time such elimination is
+    /// possible.
+    fn use_elimination_array(&mut self) -> bool;
 }
 
 #[cfg(test)]
@@ -116,7 +154,7 @@ mod tests {
             let item_count = 100_000;
 
             let mut handlers = vec![];
-            let stack = Arc::new(Stack::new());
+            let stack = Arc::new(Stack::<()>::new());
 
             // When we test `pop` push some values onto stack beforehand to make
             // `pop` operation more involved, thus cause more contention further
