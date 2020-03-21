@@ -6,11 +6,13 @@
 //! a classic Treiber stack only.
 //!
 //! ```rust
-//! EliminationBackoffStack::<
-//!   _,
+//! # use elimination_backoff_stack::Stack;
+//! # use elimination_backoff_stack::strategy::NoEliminationStrategy;
+//! Stack::<
+//!   String,
 //!   NoEliminationStrategy,
 //!   NoEliminationStrategy,
-//! >::new()
+//! >::new();
 //! ```
 //!
 //! Why at compile time?
