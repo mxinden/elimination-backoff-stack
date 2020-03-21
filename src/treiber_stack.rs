@@ -1,4 +1,4 @@
-//! Treiber stack [1] implementation adapted from [crossbeam example][2]. 
+//! Treiber stack [1] implementation adapted from [crossbeam example][2].
 //!
 //! [1]: Treiber, R. Kent. Systems programming: Coping with parallelism. New
 //! York: International Business Machines Incorporated, Thomas J. Watson
@@ -38,57 +38,87 @@ impl<T> TreiberStack<T> {
     }
 
     /// Pushes a value on top of the stack.
-    pub fn push(&self, t: T) -> Result<(), T> {
-        let n = Owned::new(Node {
+    pub fn push<S: PushStrategy>(&self, t: T, strategy: &mut S) -> Result<(), T> {
+        let mut n = Owned::new(Node {
             data: ManuallyDrop::new(t),
             next: Atomic::null(),
         });
 
         let guard = epoch::pin();
 
-        let head = self.head.load(Relaxed, &guard);
-        n.next.store(head, Relaxed);
+        while strategy.try_push() {
+            let head = self.head.load(Relaxed, &guard);
+            n.next.store(head, Relaxed);
 
-        match self.head.compare_and_set(head, n, Release, &guard) {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                // TODO: Rust's Box supports DerefMove which returns an owned T
-                // on dereferencing the Box. This must be possible with Owned as
-                // well somehow. Creating a Box first most involve some
-                // overhead.
-                //
-                // See:
-                // https://stackoverflow.com/questions/42264041/how-do-i-get-an-owned-value-out-of-a-box
-                Err(ManuallyDrop::into_inner((*e.new.into_box()).data))
+            match self.head.compare_and_set(head, n, Release, &guard) {
+                Ok(_) => return Ok(()),
+                Err(e) => {
+                    n = e.new;
+                }
             }
         }
+
+        // TODO: Rust's Box supports DerefMove which returns an owned T
+        // on dereferencing the Box. This must be possible with Owned as
+        // well somehow. Creating a Box first most involve some
+        // overhead.
+        //
+        // See:
+        // https://stackoverflow.com/questions/42264041/how-do-i-get-an-owned-value-out-of-a-box
+        return Err(ManuallyDrop::into_inner((*n.into_box()).data));
     }
 
     /// Attempts to pop the top element from the stack.
-    pub fn pop(&self) -> Result<Option<T>, ()> {
+    pub fn pop<S: PopStrategy>(&self, strategy: &mut S) -> Result<Option<T>, ()> {
         let guard = epoch::pin();
         let head = self.head.load(Acquire, &guard);
 
-        match unsafe { head.as_ref() } {
-            Some(h) => {
-                let next = h.next.load(Relaxed, &guard);
+        while strategy.try_pop() {
+            match unsafe { head.as_ref() } {
+                Some(h) => {
+                    let next = h.next.load(Relaxed, &guard);
 
-                match self.head.compare_and_set(head, next, Release, &guard) {
-                    Ok(_) => unsafe {
-                        guard.defer_destroy(head);
-                        Ok(Some(ManuallyDrop::into_inner(ptr::read(&(*h).data))))
-                    },
-                    Err(_) => Err(()),
+                    match self.head.compare_and_set(head, next, Release, &guard) {
+                        Ok(_) => unsafe {
+                            guard.defer_destroy(head);
+                            return Ok(Some(ManuallyDrop::into_inner(ptr::read(&(*h).data))))
+                        },
+                        Err(_) => {},
+                    }
                 }
+                None => return Ok(None),
             }
-            None => Ok(None),
         }
+
+        return Err(())
     }
 }
 
 impl<T> Drop for TreiberStack<T> {
     fn drop(&mut self) {
+        /// Used to enable `<TreiberStack<T> as Drop>::drop` to call
+        /// `TreiberStack::pop`.
+        //
+        // TODO: A bit of a hack. Can we do better?
+        struct DropStrategy {}
+
+        impl PopStrategy for DropStrategy {
+            fn try_pop(&mut self) -> bool {
+                true
+            }
+        }
+
+        let mut strategy = DropStrategy{};
+
         // TODO: Document unwrap.
-        while self.pop().unwrap().is_some() {}
+        while self.pop(&mut strategy).unwrap().is_some() {}
     }
+}
+
+pub trait PushStrategy {
+    fn try_push(&mut self) -> bool;
+}
+
+pub trait PopStrategy {
+    fn try_pop(&mut self) -> bool;
 }

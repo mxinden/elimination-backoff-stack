@@ -9,7 +9,8 @@ use strategy::DefaultStrategy;
 use treiber_stack::TreiberStack;
 
 #[derive(Default)]
-pub struct Stack<T, PushS = DefaultStrategy, PopS = DefaultStrategy> {
+pub struct Stack<T, PushS = DefaultStrategy, PopS = DefaultStrategy> where
+{
     stack: TreiberStack<T>,
     elimination_array: EliminationArray<T>,
     phantom: PhantomData<(PushS, PopS)>,
@@ -34,7 +35,7 @@ where
         let mut item = item;
 
         loop {
-            match self.stack.push(item) {
+            match self.stack.push(item, &mut strategy) {
                 Ok(()) => return,
                 Err(i) => item = i,
             };
@@ -49,10 +50,10 @@ where
     }
 
     pub fn pop(&self) -> Option<T> {
-        let mut strategy = PushS::new();
+        let mut strategy = PopS::new();
 
         loop {
-            match self.stack.pop() {
+            match self.stack.pop(&mut strategy) {
                 Ok(item) => return item,
                 Err(()) => {}
             };
@@ -68,7 +69,7 @@ where
 }
 
 /// Strategy for push operations.
-pub trait PushStrategy {
+pub trait PushStrategy: treiber_stack::PushStrategy {
     fn new() -> Self;
 
     /// Decide whether the stack should try eliminating the push operation on
@@ -78,7 +79,7 @@ pub trait PushStrategy {
 }
 
 /// Strategy for pop operations.
-pub trait PopStrategy {
+pub trait PopStrategy: treiber_stack::PopStrategy {
     fn new() -> Self;
 
     /// Decide whether the stack should try eliminating the pop operation on the
