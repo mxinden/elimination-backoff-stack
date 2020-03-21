@@ -1,6 +1,7 @@
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use elimination_backoff_stack::{
-    strategy::NoEliminationStrategy, PopStrategy, PushStrategy, Stack as EliminationBackoffStack,
+    strategy::{NoEliminationStrategy, RetryStrategy},
+    PopStrategy, PushStrategy, Stack as EliminationBackoffStack,
 };
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -94,6 +95,20 @@ fn bench_stacks(c: &mut Criterion) {
                         _,
                         NoEliminationStrategy,
                         NoEliminationStrategy,
+                    >::new());
+                    benchmark(stack, *i, item_count);
+                })
+            },
+        );
+        group.bench_with_input(
+            BenchmarkId::new("Arc<EliminationBackoffStack<_, RetryStrategy>>", i),
+            i,
+            |b, i| {
+                b.iter(|| {
+                    let stack = Arc::new(EliminationBackoffStack::<
+                        _,
+                        RetryStrategy,
+                        RetryStrategy,
                     >::new());
                     benchmark(stack, *i, item_count);
                 })
