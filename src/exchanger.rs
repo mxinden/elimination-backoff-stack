@@ -66,6 +66,7 @@ impl<T> Exchanger<T> {
 
         loop {
             // TODO: We could yield to the OS scheduler here.
+            // std::thread::yield_now();
 
             // TODO: Can we do relaxed here, given that the important part is
             // further below with compare_and set?

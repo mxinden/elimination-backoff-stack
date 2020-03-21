@@ -37,6 +37,8 @@ impl<T> EliminationArray<T> {
     }
 }
 
+// TODO: Add retry for push in case exchanger is occupied by other push
+// operation.
 pub trait PushStrategy: exchanger::PushStrategy {}
 
 pub trait PopStrategy: exchanger::PopStrategy {
