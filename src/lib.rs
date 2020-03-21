@@ -40,7 +40,7 @@ where
             };
 
             if strategy.use_elimination_array() {
-                match self.elimination_array.exchange_push(item) {
+                match self.elimination_array.exchange_push(item, &mut strategy) {
                     Ok(()) => return,
                     Err(i) => item = i,
                 };
@@ -68,7 +68,7 @@ where
 }
 
 /// Strategy for push operations.
-pub trait PushStrategy: treiber_stack::PushStrategy {
+pub trait PushStrategy: treiber_stack::PushStrategy + elimination_array::PushStrategy {
     fn new() -> Self;
 
     /// Decide whether the stack should try eliminating the push operation on

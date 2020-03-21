@@ -1,4 +1,4 @@
-use crate::exchanger::Exchanger;
+use crate::exchanger::{self, Exchanger};
 use rand::{thread_rng, Rng};
 
 #[derive(Default)]
@@ -16,13 +16,13 @@ impl<T> EliminationArray<T> {
         Self { exchangers }
     }
 
-    pub fn exchange_push(&self, item: T) -> Result<(), T> {
-        self.rnd_exchanger().exchange_push(item)
+    pub fn exchange_push<S: PushStrategy>(&self, item: T, strategy: &mut S) -> Result<(), T> {
+        self.rnd_exchanger().exchange_push(item, strategy)
     }
 
     pub fn exchange_pop<S: PopStrategy>(&self, strategy: &mut S) -> Result<T, ()> {
         while strategy.try_pop() {
-            match self.rnd_exchanger().exchange_pop() {
+            match self.rnd_exchanger().exchange_pop(strategy) {
                 Ok(item) => return Ok(item),
                 Err(()) => {}
             }
@@ -37,14 +37,16 @@ impl<T> EliminationArray<T> {
     }
 }
 
-pub trait PopStrategy {
+pub trait PushStrategy: exchanger::PushStrategy {}
+
+pub trait PopStrategy: exchanger::PopStrategy {
     fn try_pop(&mut self) -> bool;
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::strategy::DefaultStrategy;
     use super::*;
+    use crate::strategy::DefaultStrategy;
     use std::sync::Arc;
     use std::thread;
 
@@ -61,7 +63,8 @@ mod tests {
 
             handlers.push(thread::spawn(move || {
                 for _ in 0..item_count {
-                    while elimination_array.exchange_push(()).is_err() {}
+                    let mut strategy = DefaultStrategy::new();
+                    while elimination_array.exchange_push((), &mut strategy).is_err() {}
                 }
             }))
         }
