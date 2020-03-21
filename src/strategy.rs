@@ -1,7 +1,28 @@
+//! A Strategy is a way to configure the behavior of a [`super::Stack`] at
+//! compile time.
+//!
+//! By default a [`super::Stack`] uses the [`DefaultStrategy`]. Instead one can
+//! initiate a [`super::Stack`] with e.g. the [`NoEliminationStrategy`] to get
+//! a classic Treiber stack only.
+//!
+//! ```rust
+//! EliminationBackoffStack::<
+//!   _,
+//!   NoEliminationStrategy,
+//!   NoEliminationStrategy,
+//! >::new()
+//! ```
+//!
+//! Why at compile time?
+//!
+//! To reduce the overhead introduced through isolated behavior management by
+//! enabling the compiler to do all kinds of things, e.g. constant folding.
+
 use crate::{
     elimination_array, exchanger, treiber_stack, PopStrategy as StackPopStrategy,
     PushStrategy as StackPushStrategy,
 };
+
 
 /// Represents the default strategy aiming for good average performance.
 //
