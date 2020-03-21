@@ -20,8 +20,15 @@ impl<T> EliminationArray<T> {
         self.rnd_exchanger().exchange_push(item)
     }
 
-    pub fn exchange_pop(&self) -> Result<T, ()> {
-        self.rnd_exchanger().exchange_pop()
+    pub fn exchange_pop<S: PopStrategy>(&self, strategy: &mut S) -> Result<T, ()> {
+        while strategy.try_pop() {
+            match self.rnd_exchanger().exchange_pop() {
+                Ok(item) => return Ok(item),
+                Err(()) => {}
+            }
+        }
+
+        return Err(());
     }
 
     fn rnd_exchanger(&self) -> &Exchanger<T> {
@@ -30,8 +37,13 @@ impl<T> EliminationArray<T> {
     }
 }
 
+pub trait PopStrategy {
+    fn try_pop(&mut self) -> bool;
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::strategy::DefaultStrategy;
     use super::*;
     use std::sync::Arc;
     use std::thread;
@@ -60,7 +72,8 @@ mod tests {
 
             handlers.push(thread::spawn(move || {
                 for _ in 0..item_count {
-                    while elimination_array.exchange_pop().is_err() {}
+                    let mut strategy = DefaultStrategy::new();
+                    while elimination_array.exchange_pop(&mut strategy).is_err() {}
                 }
             }))
         }

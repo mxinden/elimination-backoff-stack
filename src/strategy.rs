@@ -1,14 +1,20 @@
-use crate::{treiber_stack, PopStrategy as StackPopStrategy, PushStrategy as StackPushStrategy};
+use crate::{
+    elimination_array, treiber_stack, PopStrategy as StackPopStrategy,
+    PushStrategy as StackPushStrategy,
+};
 
 /// Represents the default strategy aiming for good average performance.
 #[derive(Default)]
 pub struct DefaultStrategy {
+    // TODO: usize is a bit big on 64bit machines, no?
     treiber_stack_push_cnt: usize,
     treiber_stack_pop_cnt: usize,
+
+    elimination_array_pop_cnt: usize,
 }
 
 impl DefaultStrategy {
-    fn new() -> Self {
+    pub fn new() -> Self {
         DefaultStrategy::default()
     }
 }
@@ -53,6 +59,18 @@ impl treiber_stack::PopStrategy for DefaultStrategy {
         }
 
         self.treiber_stack_pop_cnt += 1;
+        return true;
+    }
+}
+
+impl elimination_array::PopStrategy for DefaultStrategy {
+    fn try_pop(&mut self) -> bool {
+        if self.elimination_array_pop_cnt == 1 {
+            self.elimination_array_pop_cnt = 0;
+            return false;
+        }
+
+        self.elimination_array_pop_cnt += 1;
         return true;
     }
 }
@@ -112,5 +130,11 @@ impl treiber_stack::PopStrategy for NoEliminationStrategy {
 
         self.treiber_stack_pop_cnt += 1;
         return true;
+    }
+}
+
+impl elimination_array::PopStrategy for NoEliminationStrategy {
+    fn try_pop(&mut self) -> bool {
+        false
     }
 }
