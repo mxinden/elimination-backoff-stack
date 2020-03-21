@@ -3,12 +3,6 @@ use std::mem::ManuallyDrop;
 use std::ptr;
 use std::sync::atomic::Ordering::SeqCst;
 
-// TODO: Introduce adaptive spinning.
-//
-// TODO: How about a trait `Strategy` that one reports failures to and asks
-// whether it is worth retrying.
-const MAX_RETRIES: u32 = 10;
-
 // TODO: crossbeam::epoch::Shared has a with_tag method. Can this mirror the
 // Java AtomicStampedReference?
 enum Item<T> {
@@ -29,8 +23,7 @@ impl<T> Exchanger<T> {
         }
     }
 
-    pub fn exchange_push(&self, item: T) -> Result<(), T> {
-        let mut tries = 0;
+    pub fn exchange_push<S: PushStrategy>(&self, item: T, strategy: &mut S) -> Result<(), T> {
         let mut new_item = Owned::new(Item::Waiting(ManuallyDrop::new(item)));
 
         // TODO: Should we reuse this guard? Might be better performing when
@@ -38,8 +31,7 @@ impl<T> Exchanger<T> {
         let guard = epoch::pin();
 
         loop {
-            tries += 1;
-            if tries == MAX_RETRIES {
+            if !strategy.try_start_exchange() {
                 let item = match std::mem::replace(&mut *new_item, Item::Empty) {
                     Item::Empty => unreachable!(),
                     Item::Waiting(item) => ManuallyDrop::into_inner(item),
@@ -72,21 +64,20 @@ impl<T> Exchanger<T> {
             }
         }
 
-        tries = 0;
-
         loop {
+            // TODO: We could yield to the OS scheduler here.
+            // std::thread::yield_now();
+
             // TODO: Can we do relaxed here, given that the important part is
             // further below with compare_and set?
             let current_item = self.item.load(SeqCst, &guard);
-
-            tries += 1;
 
             match unsafe { current_item.as_ref() } {
                 Some(&Item::Empty) => {
                     panic!("only we can set it back to empty");
                 }
                 Some(&Item::Waiting(ref item)) => {
-                    if tries < MAX_RETRIES {
+                    if strategy.retry_check_exchanged() {
                         continue;
                     }
 
@@ -113,16 +104,10 @@ impl<T> Exchanger<T> {
         }
     }
 
-    pub fn exchange_pop(&self) -> Result<T, ()> {
-        let mut tries = 0;
+    pub fn exchange_pop<S: PopStrategy>(&self, strategy: &mut S) -> Result<T, ()> {
         let guard = epoch::pin();
 
-        loop {
-            tries += 1;
-            if tries == MAX_RETRIES {
-                return Err(());
-            }
-
+        while strategy.try_exchange() {
             // TODO: Can we do relaxed here, given that the important part is
             // further below with compare_and set?
             let current_item = self.item.load(SeqCst, &guard);
@@ -149,6 +134,8 @@ impl<T> Exchanger<T> {
                 None => unimplemented!(),
             }
         }
+
+        return Err(());
     }
 }
 
@@ -178,9 +165,19 @@ impl<T> Drop for Exchanger<T> {
     }
 }
 
+pub trait PushStrategy {
+    fn try_start_exchange(&mut self) -> bool;
+    fn retry_check_exchanged(&mut self) -> bool;
+}
+
+pub trait PopStrategy {
+    fn try_exchange(&mut self) -> bool;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::strategy::DefaultStrategy;
     use std::sync::Arc;
     use std::thread;
 
@@ -189,9 +186,14 @@ mod tests {
         let exchanger = Arc::new(Exchanger::new());
 
         let t1_exchanger = exchanger.clone();
-        let t1 = thread::spawn(move || while t1_exchanger.exchange_push(()).is_err() {});
+        let mut push_strategy = DefaultStrategy::new();
+        let t1 =
+            thread::spawn(
+                move || while t1_exchanger.exchange_push((), &mut push_strategy).is_err() {},
+            );
 
-        while exchanger.exchange_pop().is_err() {}
+        let mut pop_strategy = DefaultStrategy::new();
+        while exchanger.exchange_pop(&mut pop_strategy).is_err() {}
 
         t1.join().unwrap();
     }
@@ -202,23 +204,27 @@ mod tests {
         let exchanger = Arc::new(Exchanger::new());
 
         let t1_exchanger = exchanger.clone();
+        let mut t1_strategy = DefaultStrategy::new();
         handlers.push(thread::spawn(move || {
-            while t1_exchanger.exchange_push(()).is_err() {}
+            while t1_exchanger.exchange_push((), &mut t1_strategy).is_err() {}
         }));
 
         let t2_exchanger = exchanger.clone();
+        let mut t2_strategy = DefaultStrategy::new();
         handlers.push(thread::spawn(move || {
-            while t2_exchanger.exchange_push(()).is_err() {}
+            while t2_exchanger.exchange_push((), &mut t2_strategy).is_err() {}
         }));
 
         let t3_exchanger = exchanger.clone();
+        let mut t3_strategy = DefaultStrategy::new();
         handlers.push(thread::spawn(
             move || {
-                while t3_exchanger.exchange_pop().is_err() {}
+                while t3_exchanger.exchange_pop(&mut t3_strategy).is_err() {}
             },
         ));
 
-        while exchanger.exchange_pop().is_err() {}
+        let mut t4_strategy = DefaultStrategy::new();
+        while exchanger.exchange_pop(&mut t4_strategy).is_err() {}
 
         for handler in handlers.into_iter() {
             handler.join().unwrap();
