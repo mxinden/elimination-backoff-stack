@@ -155,7 +155,7 @@ impl<T> Exchanger<T> {
             }
         }
 
-        return Err(());
+        Err(())
     }
 }
 
@@ -237,11 +237,9 @@ mod tests {
 
         let t3_exchanger = exchanger.clone();
         let mut t3_strategy = DefaultStrategy::new();
-        handlers.push(thread::spawn(
-            move || {
-                while t3_exchanger.exchange_pop(&mut t3_strategy).is_err() {}
-            },
-        ));
+        handlers.push(thread::spawn(move || {
+            while t3_exchanger.exchange_pop(&mut t3_strategy).is_err() {}
+        }));
 
         let mut t4_strategy = DefaultStrategy::new();
         while exchanger.exchange_pop(&mut t4_strategy).is_err() {}

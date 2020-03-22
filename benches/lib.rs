@@ -38,7 +38,7 @@ impl<T: Send> Stack<T> for Arc<Mutex<Vec<T>>> {
 
 fn bench_stacks(c: &mut Criterion) {
     fn benchmark(stack: impl Stack<Vec<u8>> + 'static, threads: usize, item_count: u64) {
-        let item = "my_test_item".as_bytes().to_vec();
+        let item = b"my_test_item".to_vec();
 
         let mut handlers = vec![];
 
@@ -105,11 +105,8 @@ fn bench_stacks(c: &mut Criterion) {
             i,
             |b, i| {
                 b.iter(|| {
-                    let stack = Arc::new(EliminationBackoffStack::<
-                        _,
-                        RetryStrategy,
-                        RetryStrategy,
-                    >::new());
+                    let stack =
+                        Arc::new(EliminationBackoffStack::<_, RetryStrategy, RetryStrategy>::new());
                     benchmark(stack, *i, item_count);
                 })
             },

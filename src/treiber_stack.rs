@@ -65,7 +65,7 @@ impl<T> TreiberStack<T> {
         //
         // See:
         // https://stackoverflow.com/questions/42264041/how-do-i-get-an-owned-value-out-of-a-box
-        return Err(ManuallyDrop::into_inner((*n.into_box()).data));
+        Err(ManuallyDrop::into_inner((*n.into_box()).data))
     }
 
     /// Attempts to pop the top element from the stack.
@@ -81,16 +81,16 @@ impl<T> TreiberStack<T> {
                     match self.head.compare_and_set(head, next, Release, &guard) {
                         Ok(_) => unsafe {
                             guard.defer_destroy(head);
-                            return Ok(Some(ManuallyDrop::into_inner(ptr::read(&(*h).data))))
+                            return Ok(Some(ManuallyDrop::into_inner(ptr::read(&(*h).data))));
                         },
-                        Err(_) => {},
+                        Err(_) => {}
                     }
                 }
                 None => return Ok(None),
             }
         }
 
-        return Err(())
+        Err(())
     }
 }
 
@@ -108,7 +108,7 @@ impl<T> Drop for TreiberStack<T> {
             }
         }
 
-        let mut strategy = DropStrategy{};
+        let mut strategy = DropStrategy {};
 
         // TODO: Document unwrap.
         while self.pop(&mut strategy).unwrap().is_some() {}

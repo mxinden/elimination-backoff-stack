@@ -28,7 +28,7 @@ impl<T> EliminationArray<T> {
             }
         }
 
-        return Err(());
+        Err(())
     }
 
     fn rnd_exchanger(&self) -> &Exchanger<T> {

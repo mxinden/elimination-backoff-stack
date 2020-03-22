@@ -25,7 +25,6 @@ use crate::{
     PushStrategy as StackPushStrategy,
 };
 
-
 /// Represents the default strategy aiming for good average performance.
 //
 // TODO: Rename this to BackAndForthStrategy.
@@ -76,7 +75,7 @@ impl treiber_stack::PushStrategy for DefaultStrategy {
         }
 
         self.treiber_stack_push_cnt += 1;
-        return true;
+        true
     }
 }
 
@@ -88,7 +87,7 @@ impl treiber_stack::PopStrategy for DefaultStrategy {
         }
 
         self.treiber_stack_pop_cnt += 1;
-        return true;
+        true
     }
 }
 
@@ -102,7 +101,7 @@ impl elimination_array::PopStrategy for DefaultStrategy {
         }
 
         self.elimination_array_pop_cnt += 1;
-        return true;
+        true
     }
 }
 
@@ -114,7 +113,7 @@ impl exchanger::PushStrategy for DefaultStrategy {
         }
 
         self.exchanger_start_push_cnt += 1;
-        return true;
+        true
     }
 
     fn retry_check_exchanged(&mut self) -> bool {
@@ -124,7 +123,7 @@ impl exchanger::PushStrategy for DefaultStrategy {
         }
 
         self.exchanger_retry_check_success_cnt += 1;
-        return true;
+        true
     }
 }
 
@@ -136,7 +135,7 @@ impl exchanger::PopStrategy for DefaultStrategy {
         }
 
         self.exchanger_try_pop_cnt += 1;
-        return true;
+        true
     }
 }
 
@@ -182,7 +181,7 @@ impl treiber_stack::PushStrategy for NoEliminationStrategy {
         }
 
         self.treiber_stack_push_cnt += 1;
-        return true;
+        true
     }
 }
 
@@ -194,7 +193,7 @@ impl treiber_stack::PopStrategy for NoEliminationStrategy {
         }
 
         self.treiber_stack_pop_cnt += 1;
-        return true;
+        true
     }
 }
 
@@ -272,7 +271,7 @@ impl treiber_stack::PushStrategy for RetryStrategy {
         }
 
         self.treiber_stack_push_cnt += 1;
-        return true;
+        true
     }
 }
 
@@ -286,7 +285,7 @@ impl treiber_stack::PopStrategy for RetryStrategy {
         }
 
         self.treiber_stack_pop_cnt += 1;
-        return true;
+        true
     }
 }
 
@@ -306,7 +305,7 @@ impl elimination_array::PopStrategy for RetryStrategy {
         }
 
         self.elimination_array_pop_cnt += 1;
-        return true;
+        true
     }
 }
 
@@ -320,7 +319,7 @@ impl exchanger::PushStrategy for RetryStrategy {
         }
 
         self.exchanger_try_start_exchange_cnt += 1;
-        return true;
+        true
     }
 
     // Wait for a pop operation for up to 50 atomic loads.
@@ -331,7 +330,7 @@ impl exchanger::PushStrategy for RetryStrategy {
         }
 
         self.exchanger_retry_check_exchanged_cnt += 1;
-        return true;
+        true
     }
 }
 
@@ -347,6 +346,6 @@ impl exchanger::PopStrategy for RetryStrategy {
         }
 
         self.exchanger_try_pop_exchange_cnt += 1;
-        return true;
+        true
     }
 }
