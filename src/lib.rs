@@ -90,9 +90,10 @@ pub trait PopStrategy: treiber_stack::PopStrategy + elimination_array::PopStrate
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quickcheck::{quickcheck, Arbitrary, Gen};
+    use quickcheck::{quickcheck, Arbitrary, Gen, TestResult};
     use rand::Rng;
-    use std::sync::Arc;
+    use std::convert::TryInto;
+    use std::sync::{Arc, Mutex};
     use std::thread;
 
     #[derive(Clone, Debug)]
@@ -129,6 +130,81 @@ mod tests {
         }
 
         quickcheck(prop as fn(_));
+    }
+
+    #[test]
+    fn quickcheck_multithreaded_no_duplicates() {
+        #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+        struct Item {
+            thread_id: u8,
+            nonce: u32,
+        }
+
+        fn prop(num_threads: usize, mut operations: Vec<Vec<Operation<()>>>) -> TestResult {
+            if num_threads > num_cpus::get() * 2 || operations.len() < num_threads {
+                return TestResult::discard();
+            }
+
+            let mut handlers = vec![];
+            let stack = Arc::new(Stack::<Item>::new());
+            let popped_items = Arc::new(Mutex::new(vec![]));
+
+            // Spawn threads pushing to and popping from stack.
+            for thread_id in 0..num_threads {
+                let stack = stack.clone();
+                let popped_items = popped_items.clone();
+                let operations = operations.pop().unwrap();
+                if operations.is_empty() {
+                    continue;
+                }
+
+                handlers.push(thread::spawn(move || {
+                    let mut items = vec![];
+
+                    for (nonce, operation) in operations.into_iter().enumerate() {
+                        match operation {
+                            Operation::Push(_) => {
+                                stack.push(Item {
+                                    thread_id: thread_id.try_into().unwrap(),
+                                    nonce: nonce.try_into().unwrap(),
+                                });
+                            }
+                            Operation::Pop => {
+                                if let Some(item) = stack.pop() {
+                                    items.push(item);
+                                }
+                            }
+                        };
+                    }
+
+                    popped_items.lock().unwrap().extend_from_slice(&items);
+                }))
+            }
+
+            for handler in handlers {
+                handler.join().unwrap();
+            }
+
+            let mut popped_items = Arc::try_unwrap(popped_items).unwrap().into_inner().unwrap();
+            if popped_items.is_empty() {
+                return TestResult::passed();
+            }
+
+            // Check for duplicates.
+            popped_items.sort();
+            let mut prev_item = popped_items.pop().unwrap();
+            for item in popped_items {
+                if item == prev_item {
+                    panic!("Got two equal items: {:?} and {:?}", prev_item, item);
+                }
+
+                prev_item = item;
+            }
+
+            TestResult::passed()
+        }
+
+        quickcheck(prop as fn(_, _) -> _);
     }
 
     /// Scenario: A push or pop operation fails on the lock-free stack due to
