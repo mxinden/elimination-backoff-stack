@@ -17,14 +17,22 @@ impl<T> EliminationArray<T> {
     }
 
     pub fn exchange_push<S: PushStrategy>(&self, item: T, strategy: &mut S) -> Result<(), T> {
-        self.rnd_exchanger().exchange_push(item, strategy)
+        let mut item = item;
+
+        while strategy.try_push() {
+            match self.rnd_exchanger().exchange_push(item, strategy) {
+                Ok(()) => return Ok(()),
+                Err(i) => item = i,
+            }
+        }
+
+        Err(item)
     }
 
     pub fn exchange_pop<S: PopStrategy>(&self, strategy: &mut S) -> Result<T, ()> {
         while strategy.try_pop() {
-            match self.rnd_exchanger().exchange_pop(strategy) {
-                Ok(item) => return Ok(item),
-                Err(()) => {}
+            if let Ok(item) = self.rnd_exchanger().exchange_pop(strategy) {
+                return Ok(item);
             }
         }
 
@@ -39,7 +47,9 @@ impl<T> EliminationArray<T> {
 
 // TODO: Add retry for push in case exchanger is occupied by other push
 // operation.
-pub trait PushStrategy: exchanger::PushStrategy {}
+pub trait PushStrategy: exchanger::PushStrategy {
+    fn try_push(&mut self) -> bool;
+}
 
 pub trait PopStrategy: exchanger::PopStrategy {
     fn try_pop(&mut self) -> bool;

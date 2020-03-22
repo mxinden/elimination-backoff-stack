@@ -34,6 +34,7 @@ pub struct DefaultStrategy {
     treiber_stack_push_cnt: usize,
     treiber_stack_pop_cnt: usize,
 
+    elimination_array_push_cnt: usize,
     elimination_array_pop_cnt: usize,
 
     exchanger_start_push_cnt: usize,
@@ -91,7 +92,17 @@ impl treiber_stack::PopStrategy for DefaultStrategy {
     }
 }
 
-impl elimination_array::PushStrategy for DefaultStrategy {}
+impl elimination_array::PushStrategy for DefaultStrategy {
+    fn try_push(&mut self) -> bool {
+        if self.elimination_array_push_cnt == 1 {
+            self.elimination_array_push_cnt = 0;
+            return false;
+        }
+
+        self.elimination_array_push_cnt += 1;
+        true
+    }
+}
 
 impl elimination_array::PopStrategy for DefaultStrategy {
     fn try_pop(&mut self) -> bool {
@@ -197,7 +208,11 @@ impl treiber_stack::PopStrategy for NoEliminationStrategy {
     }
 }
 
-impl elimination_array::PushStrategy for NoEliminationStrategy {}
+impl elimination_array::PushStrategy for NoEliminationStrategy {
+    fn try_push(&mut self) -> bool {
+        false
+    }
+}
 
 impl elimination_array::PopStrategy for NoEliminationStrategy {
     fn try_pop(&mut self) -> bool {
@@ -228,6 +243,7 @@ pub struct RetryStrategy {
     treiber_stack_push_cnt: usize,
     treiber_stack_pop_cnt: usize,
 
+    elimination_array_push_cnt: usize,
     elimination_array_pop_cnt: usize,
 
     exchanger_try_start_exchange_cnt: usize,
@@ -289,7 +305,17 @@ impl treiber_stack::PopStrategy for RetryStrategy {
     }
 }
 
-impl elimination_array::PushStrategy for RetryStrategy {}
+impl elimination_array::PushStrategy for RetryStrategy {
+    fn try_push(&mut self) -> bool {
+        if self.elimination_array_push_cnt == 1 {
+            self.elimination_array_push_cnt = 0;
+            return false;
+        }
+
+        self.elimination_array_push_cnt += 1;
+        true
+    }
+}
 
 impl elimination_array::PopStrategy for RetryStrategy {
     // Try out 3 different exchangers before going back to the Treiber stack.
