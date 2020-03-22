@@ -20,7 +20,8 @@ impl<T> EliminationArray<T> {
         let mut item = item;
 
         while strategy.try_push() {
-            match self.rnd_exchanger().exchange_push(item, strategy) {
+            let num_exchangers = strategy.num_exchangers(self.exchangers.len());
+            match self.rnd_exchanger(num_exchangers).exchange_push(item, strategy) {
                 Ok(()) => return Ok(()),
                 Err(i) => item = i,
             }
@@ -31,7 +32,8 @@ impl<T> EliminationArray<T> {
 
     pub fn exchange_pop<S: PopStrategy>(&self, strategy: &mut S) -> Result<T, ()> {
         while strategy.try_pop() {
-            if let Ok(item) = self.rnd_exchanger().exchange_pop(strategy) {
+            let num_exchangers = strategy.num_exchangers(self.exchangers.len());
+            if let Ok(item) = self.rnd_exchanger(num_exchangers).exchange_pop(strategy) {
                 return Ok(item);
             }
         }
@@ -39,20 +41,32 @@ impl<T> EliminationArray<T> {
         Err(())
     }
 
-    fn rnd_exchanger(&self) -> &Exchanger<T> {
-        let i = thread_rng().gen_range(0, self.exchangers.len());
+    fn rnd_exchanger(&self, range: usize) -> &Exchanger<T> {
+        let i = thread_rng().gen_range(0, range);
         &self.exchangers[i]
     }
 }
 
-// TODO: Add retry for push in case exchanger is occupied by other push
-// operation.
 pub trait PushStrategy: exchanger::PushStrategy {
     fn try_push(&mut self) -> bool;
+
+    /// Decide how many of the `total` exchangers should be considered. On low
+    /// contention one could only use the first x exchangers to increase the
+    /// exchange-success rate.
+    fn num_exchangers(&mut self, total: usize) -> usize {
+        total
+    }
 }
 
 pub trait PopStrategy: exchanger::PopStrategy {
     fn try_pop(&mut self) -> bool;
+
+    /// Decide how many of the `total` exchangers should be considered. On low
+    /// contention one could only use the first x exchangers to increase the
+    /// exchange-success rate.
+    fn num_exchangers(&mut self, total: usize) -> usize {
+        total
+    }
 }
 
 #[cfg(test)]
