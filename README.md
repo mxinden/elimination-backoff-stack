@@ -1,5 +1,21 @@
 **Work in progress**
 
+Before you consider using this ask yourself the following questions:
+
+- *Is my workload running on a machine > 8 cores?*
+
+    If not you likely won't see enough contention that an elimination back-off
+    stack outperforms a classic Treiber stack or even an `Arc<Mutex<Vec<T>>>`.
+
+- *Do I trust the author's use of atomics?*
+
+    If yes, take a look at all `grep -r -E "compare_and_set"` anyways.
+
+- *Do I need a single coordination point through a stack to solve my problem?*
+
+    Think about how you could solve your problem in a parallel fashion requiring
+    less coordination.
+
 
 # Lock-free elimination back-off stack
 
