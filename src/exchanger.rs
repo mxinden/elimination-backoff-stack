@@ -69,7 +69,10 @@ impl<T> Exchanger<T> {
         }
 
         loop {
-            // TODO: We could yield to the OS scheduler here.
+            // TODO: Don't yield to the OS, but busy loop for a bit (can happen
+            // in the strategy).
+            //
+            // See parking_lot spinwait.rs
             std::thread::yield_now();
 
             // Assume using `Relaxed` is correct, given that the actual
@@ -130,25 +133,29 @@ impl<T> Exchanger<T> {
 
             match unsafe { current_item.as_ref() } {
                 Some(&Item::Empty) => {
+                    strategy.on_no_contention();
                     continue;
                 }
                 Some(&Item::Waiting(ref item)) => {
-                    if self
+                    match self
                         .item
                         // Assume using `Acquire` is correct, given that this
                         // operation does not depend on any previous operations
                         // happening before, but past operations (returning the
                         // item) happening after.
                         .compare_and_set(current_item, Owned::new(Item::Busy), Acquire, &guard)
-                        .is_ok()
                     {
-                        unsafe {
-                            guard.defer_destroy(current_item);
-                            return Ok(ManuallyDrop::into_inner(ptr::read(&(*item))));
-                        }
+                        Ok(_) => {
+                            unsafe {
+                                guard.defer_destroy(current_item);
+                                return Ok(ManuallyDrop::into_inner(ptr::read(&(*item))));
+                            }
+                        },
+                        Err(_) => strategy.on_contention(),
                     }
                 }
                 Some(&Item::Busy) => {
+                    strategy.on_contention();
                     continue;
                 }
                 None => unimplemented!(),
@@ -192,6 +199,9 @@ pub trait PushStrategy {
 
 pub trait PopStrategy {
     fn try_exchange(&mut self) -> bool;
+
+    fn on_contention(&mut self) {}
+    fn on_no_contention(&mut self) {}
 }
 
 #[cfg(test)]
