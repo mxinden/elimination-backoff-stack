@@ -1,7 +1,7 @@
 use crossbeam::epoch::{self, Atomic, Owned};
 use std::mem::ManuallyDrop;
 use std::ptr;
-use std::sync::atomic::Ordering::SeqCst;
+use std::sync::atomic::Ordering::{Acquire, Relaxed, Release};
 
 // TODO: crossbeam::epoch::Shared has a with_tag method. Can this mirror the
 // Java AtomicStampedReference?
@@ -41,15 +41,19 @@ impl<T> Exchanger<T> {
                 return Err(item);
             }
 
-            // TODO: Can we do relaxed here, given that the important part is
-            // further below with compare_and set?
-            let current_item = self.item.load(SeqCst, &guard);
+            // Assume using `Relaxed` is correct, given that the actual
+            // synchronization happens further below with `compare_and_set`.
+            let current_item = self.item.load(Relaxed, &guard);
 
             match unsafe { current_item.as_ref() } {
                 Some(&Item::Empty) => {
                     match self
                         .item
-                        .compare_and_set(current_item, new_item, SeqCst, &guard)
+                        // Assume using `Release` is correct here, given that
+                        // one needs to enforce that `new_item` is written
+                        // before being accessible by other threads through this
+                        // `compare_and_set`.
+                        .compare_and_set(current_item, new_item, Release, &guard)
                     {
                         Ok(_) => {
                             unsafe { guard.defer_destroy(current_item) };
@@ -66,11 +70,11 @@ impl<T> Exchanger<T> {
 
         loop {
             // TODO: We could yield to the OS scheduler here.
-            // std::thread::yield_now();
+            std::thread::yield_now();
 
-            // TODO: Can we do relaxed here, given that the important part is
-            // further below with compare_and set?
-            let current_item = self.item.load(SeqCst, &guard);
+            // Assume using `Relaxed` is correct, given that the actual
+            // synchronization happens further below with `compare_and_set`.
+            let current_item = self.item.load(Relaxed, &guard);
 
             match unsafe { current_item.as_ref() } {
                 Some(&Item::Empty) => {
@@ -83,7 +87,13 @@ impl<T> Exchanger<T> {
 
                     if self
                         .item
-                        .compare_and_set(current_item, Owned::new(Item::Empty), SeqCst, &guard)
+                        // Assume using `Release` is correct, given that
+                        // correctness depends on the fact that the previous
+                        // `compare_and_set` going from `Empty` to `Waiting`
+                        // happens before this instruction. Otherwise nothing
+                        // enforces, that the `Exchanger` was filled by this
+                        // push operation and not by a different push operation.
+                        .compare_and_set(current_item, Owned::new(Item::Empty), Release, &guard)
                         .is_ok()
                     {
                         unsafe {
@@ -94,7 +104,13 @@ impl<T> Exchanger<T> {
                 }
                 Some(&Item::Busy) => {
                     self.item
-                        .compare_and_set(current_item, Owned::new(Item::Empty), SeqCst, &guard)
+                        // Assume using `Release` is correct, given that
+                        // correctness depends on the fact that the previous
+                        // `compare_and_set` going from `Empty` to `Waiting`
+                        // happens before this instruction. Otherwise nothing
+                        // enforces, that the `Exchanger` was filled by this
+                        // push operation and not by a different push operation.
+                        .compare_and_set(current_item, Owned::new(Item::Empty), Release, &guard)
                         .expect("we should be the only one compare and swapping this value");
                     unsafe { guard.defer_destroy(current_item) };
                     return Ok(());
@@ -108,9 +124,9 @@ impl<T> Exchanger<T> {
         let guard = epoch::pin();
 
         while strategy.try_exchange() {
-            // TODO: Can we do relaxed here, given that the important part is
-            // further below with compare_and set?
-            let current_item = self.item.load(SeqCst, &guard);
+            // Assume using `Relaxed` is correct, given that the actual
+            // synchronization happens further below with `compare_and_set`.
+            let current_item = self.item.load(Relaxed, &guard);
 
             match unsafe { current_item.as_ref() } {
                 Some(&Item::Empty) => {
@@ -119,7 +135,11 @@ impl<T> Exchanger<T> {
                 Some(&Item::Waiting(ref item)) => {
                     if self
                         .item
-                        .compare_and_set(current_item, Owned::new(Item::Busy), SeqCst, &guard)
+                        // Assume using `Acquire` is correct, given that this
+                        // operation does not depend on any previous operations
+                        // happening before, but past operations (returning the
+                        // item) happening after.
+                        .compare_and_set(current_item, Owned::new(Item::Busy), Acquire, &guard)
                         .is_ok()
                     {
                         unsafe {
