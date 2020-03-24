@@ -29,17 +29,23 @@ where
     }
 
     pub fn push(&self, item: T) {
+        self.instrumented_push(item, &mut NoOpRecorder {});
+    }
+
+    fn instrumented_push<R: EventRecorder>(&self, item: T, recorder: &mut R) {
         let mut strategy = PushS::new();
 
         let mut item = item;
 
         loop {
+            recorder.record(Event::TryStack);
             match self.stack.push(item, &mut strategy) {
                 Ok(()) => return,
                 Err(i) => item = i,
             };
 
             if strategy.use_elimination_array() {
+                recorder.record(Event::TryEliminationArray);
                 match self.elimination_array.exchange_push(item, &mut strategy) {
                     Ok(()) => return,
                     Err(i) => item = i,
@@ -49,15 +55,21 @@ where
     }
 
     pub fn pop(&self) -> Option<T> {
+        self.instrumented_pop(&mut NoOpRecorder {})
+    }
+
+    fn instrumented_pop<R: EventRecorder>(&self, recorder: &mut R) -> Option<T> {
         let mut strategy = PopS::new();
 
         loop {
+            recorder.record(Event::TryStack);
             match self.stack.pop(&mut strategy) {
                 Ok(item) => return item,
                 Err(()) => {}
             };
 
             if strategy.use_elimination_array() {
+                recorder.record(Event::TryEliminationArray);
                 match self.elimination_array.exchange_pop(&mut strategy) {
                     Ok(item) => return Some(item),
                     Err(()) => {}
@@ -87,6 +99,28 @@ pub trait PopStrategy: treiber_stack::PopStrategy + elimination_array::PopStrate
     fn use_elimination_array(&mut self) -> bool;
 }
 
+#[derive(Clone, Debug)]
+enum Event {
+    TryStack,
+    TryEliminationArray,
+}
+
+trait EventRecorder {
+    fn record(&mut self, e: Event);
+}
+
+struct NoOpRecorder {}
+
+impl EventRecorder for NoOpRecorder {
+    fn record(&mut self, _event: Event) {}
+}
+
+impl EventRecorder for Vec<Event> {
+    fn record(&mut self, event: Event) {
+        self.push(event);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -95,6 +129,7 @@ mod tests {
     use std::convert::TryInto;
     use std::sync::{Arc, Mutex};
     use std::thread;
+    use strategy::ExpRetryStrategy;
 
     #[derive(Clone, Debug)]
     enum Operation<T> {
@@ -262,5 +297,76 @@ mod tests {
                 handler.join().unwrap();
             }
         }
+    }
+
+    #[test]
+    fn event_recording() {
+        // let stack = Arc::new(Stack::<Vec<u8>, ExpRetryStrategy, ExpRetryStrategy>::new());
+        let stack = Arc::new(Stack::<Vec<u8>>::new());
+        let item = b"my_test_item".to_vec();
+        let item_count = 10_000;
+
+        let mut handlers = vec![];
+        let events = Arc::new(Mutex::new(vec![]));
+
+        for _ in 0..(num_cpus::get() / 2) {
+            let push_stack = stack.clone();
+            let item = item.clone();
+            let push_events = events.clone();
+            handlers.push(thread::spawn(move || {
+                let mut recorder = vec![];
+                for _ in 0..item_count {
+                    push_stack.instrumented_push(item.clone(), &mut recorder);
+                }
+
+                push_events.lock().unwrap().push(recorder);
+            }));
+
+            let pop_stack = stack.clone();
+            let pop_events = events.clone();
+            handlers.push(thread::spawn(move || {
+                let mut recorder = vec![];
+                for _ in 0..item_count {
+                    pop_stack.instrumented_pop(&mut recorder);
+                }
+
+                pop_events.lock().unwrap().push(recorder);
+            }))
+        }
+
+        for handler in handlers {
+            handler.join().unwrap();
+        }
+
+        let events = Arc::try_unwrap(events).unwrap().into_inner().unwrap();
+
+        fn count_event_type<F: Fn(&Event) -> bool>(events: &Vec<Vec<Event>>, f: F) -> f64 {
+            events.iter().fold(0, |acc, events| {
+                acc + events
+                    .iter()
+                    .fold(0, |acc, event| if f(event) { acc + 1 } else { acc })
+            }) as f64
+        }
+
+        let num_try_stack =
+            count_event_type(
+                &events,
+                |e| if let Event::TryStack = e { true } else { false },
+            ) / events.len() as f64
+                / item_count as f64;
+        println!("avg tries stack per operation: {:?}", num_try_stack);
+
+        let num_try_elimination_array = count_event_type(&events, |e| {
+            if let Event::TryEliminationArray = e {
+                true
+            } else {
+                false
+            }
+        }) / events.len() as f64
+            / item_count as f64;
+        println!(
+            "avg tries elimination array per operation: {:?}",
+            num_try_elimination_array
+        );
     }
 }
