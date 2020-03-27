@@ -29,6 +29,7 @@ impl<T> EliminationArray<T> {
 
         while strategy.try_push() {
             let num_exchangers = strategy.num_exchangers(self.exchangers.len());
+            recorder.record(Event::NumExchangers(num_exchangers));
             match self
                 .rnd_exchanger(num_exchangers)
                 .exchange_push(item, strategy, recorder)
@@ -50,6 +51,7 @@ impl<T> EliminationArray<T> {
 
         while strategy.try_pop() {
             let num_exchangers = strategy.num_exchangers(self.exchangers.len());
+            recorder.record(Event::NumExchangers(num_exchangers));
             if let Ok(item) = self
                 .rnd_exchanger(num_exchangers)
                 .exchange_pop(strategy, recorder)

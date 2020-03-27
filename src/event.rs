@@ -10,6 +10,7 @@ pub(crate) enum Event {
     TryEliminationArray,
     FinishPush,
     FinishPop,
+    NumExchangers(usize),
 }
 
 pub(crate) fn print_padded(e: &Event) {
@@ -24,6 +25,7 @@ pub(crate) fn print_padded(e: &Event) {
         Event::TryEliminationArray => 1,
         Event::FinishPush => 0,
         Event::FinishPop => 0,
+        Event::NumExchangers(_) => 3,
     };
 
     for padding in 0..padding {
