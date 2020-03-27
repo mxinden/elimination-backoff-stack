@@ -1,7 +1,9 @@
 #[derive(Clone, Debug)]
 pub(crate) enum Event {
     StartPush,
+    StartEliminationArrayPush,
     StartPop,
+    StartEliminationArrayPop,
     TryStack,
     TryEliminationArray,
     FinishPush,

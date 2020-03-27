@@ -1,3 +1,4 @@
+use crate::event::{Event, EventRecorder, NoOpRecorder};
 use crate::exchanger::{self, Exchanger};
 use rand::{thread_rng, Rng};
 
@@ -16,12 +17,22 @@ impl<T> EliminationArray<T> {
         Self { exchangers }
     }
 
-    pub fn exchange_push<S: PushStrategy>(&self, item: T, strategy: &mut S) -> Result<(), T> {
+    pub(crate) fn exchange_push<S: PushStrategy, R: EventRecorder>(
+        &self,
+        item: T,
+        strategy: &mut S,
+        recorder: &mut R,
+    ) -> Result<(), T> {
+        recorder.record(Event::StartEliminationArrayPush);
+
         let mut item = item;
 
         while strategy.try_push() {
             let num_exchangers = strategy.num_exchangers(self.exchangers.len());
-            match self.rnd_exchanger(num_exchangers).exchange_push(item, strategy) {
+            match self
+                .rnd_exchanger(num_exchangers)
+                .exchange_push(item, strategy)
+            {
                 Ok(()) => return Ok(()),
                 Err(i) => item = i,
             }
@@ -30,7 +41,13 @@ impl<T> EliminationArray<T> {
         Err(item)
     }
 
-    pub fn exchange_pop<S: PopStrategy>(&self, strategy: &mut S) -> Result<T, ()> {
+    pub(crate) fn exchange_pop<S: PopStrategy, R: EventRecorder>(
+        &self,
+        strategy: &mut S,
+        recorder: &mut R,
+    ) -> Result<T, ()> {
+        recorder.record(Event::StartEliminationArrayPop);
+
         while strategy.try_pop() {
             let num_exchangers = strategy.num_exchangers(self.exchangers.len());
             if let Ok(item) = self.rnd_exchanger(num_exchangers).exchange_pop(strategy) {
@@ -88,9 +105,13 @@ mod tests {
             let elimination_array = elimination_array.clone();
 
             handlers.push(thread::spawn(move || {
+                let mut recorder = NoOpRecorder {};
                 for _ in 0..item_count {
                     let mut strategy = DefaultStrategy::new();
-                    while elimination_array.exchange_push((), &mut strategy).is_err() {}
+                    while elimination_array
+                        .exchange_push((), &mut strategy, &mut recorder)
+                        .is_err()
+                    {}
                 }
             }))
         }
@@ -100,9 +121,13 @@ mod tests {
             let elimination_array = elimination_array.clone();
 
             handlers.push(thread::spawn(move || {
+                let mut recorder = NoOpRecorder {};
                 for _ in 0..item_count {
                     let mut strategy = DefaultStrategy::new();
-                    while elimination_array.exchange_pop(&mut strategy).is_err() {}
+                    while elimination_array
+                        .exchange_pop(&mut strategy, &mut recorder)
+                        .is_err()
+                    {}
                 }
             }))
         }

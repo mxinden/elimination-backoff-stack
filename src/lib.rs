@@ -1,17 +1,17 @@
 mod elimination_array;
+mod event;
 mod exchanger;
 pub mod strategy;
 mod treiber_stack;
-mod event;
 
 #[cfg(test)]
 mod statistic;
 
 use elimination_array::EliminationArray;
+use event::{Event, EventRecorder, NoOpRecorder};
 use std::marker::PhantomData;
 use strategy::DefaultStrategy;
 use treiber_stack::TreiberStack;
-use event::{Event, EventRecorder, NoOpRecorder};
 
 #[derive(Default)]
 pub struct Stack<T, PushS = DefaultStrategy, PopS = DefaultStrategy> {
@@ -53,7 +53,10 @@ where
 
             if strategy.use_elimination_array() {
                 recorder.record(Event::TryEliminationArray);
-                match self.elimination_array.exchange_push(item, &mut strategy) {
+                match self
+                    .elimination_array
+                    .exchange_push(item, &mut strategy, recorder)
+                {
                     Ok(()) => break,
                     Err(i) => item = i,
                 };
@@ -81,7 +84,10 @@ where
 
             if strategy.use_elimination_array() {
                 recorder.record(Event::TryEliminationArray);
-                match self.elimination_array.exchange_pop(&mut strategy) {
+                match self
+                    .elimination_array
+                    .exchange_pop(&mut strategy, recorder)
+                {
                     Ok(item) => break Some(item),
                     Err(()) => {}
                 };
