@@ -1,9 +1,14 @@
 mod elimination_array;
+mod event;
 mod exchanger;
 pub mod strategy;
 mod treiber_stack;
 
+#[cfg(test)]
+mod statistic;
+
 use elimination_array::EliminationArray;
+use event::{Event, EventRecorder, NoOpRecorder};
 use std::marker::PhantomData;
 use strategy::DefaultStrategy;
 use treiber_stack::TreiberStack;
@@ -29,41 +34,69 @@ where
     }
 
     pub fn push(&self, item: T) {
+        self.instrumented_push(item, &mut NoOpRecorder {});
+    }
+
+    fn instrumented_push<R: EventRecorder>(&self, item: T, recorder: &mut R) {
+        recorder.record(Event::StartPush);
+
         let mut strategy = PushS::new();
 
         let mut item = item;
 
         loop {
+            recorder.record(Event::TryStack);
             match self.stack.push(item, &mut strategy) {
-                Ok(()) => return,
+                Ok(()) => break,
                 Err(i) => item = i,
             };
 
             if strategy.use_elimination_array() {
-                match self.elimination_array.exchange_push(item, &mut strategy) {
-                    Ok(()) => return,
+                recorder.record(Event::TryEliminationArray);
+                match self
+                    .elimination_array
+                    .exchange_push(item, &mut strategy, recorder)
+                {
+                    Ok(()) => break,
                     Err(i) => item = i,
                 };
             }
         }
+
+        recorder.record(Event::FinishPush);
     }
 
     pub fn pop(&self) -> Option<T> {
+        self.instrumented_pop(&mut NoOpRecorder {})
+    }
+
+    fn instrumented_pop<R: EventRecorder>(&self, recorder: &mut R) -> Option<T> {
+        recorder.record(Event::StartPop);
+
         let mut strategy = PopS::new();
 
-        loop {
+        let item = loop {
+            recorder.record(Event::TryStack);
             match self.stack.pop(&mut strategy) {
-                Ok(item) => return item,
+                Ok(item) => break item,
                 Err(()) => {}
             };
 
             if strategy.use_elimination_array() {
-                match self.elimination_array.exchange_pop(&mut strategy) {
-                    Ok(item) => return Some(item),
+                recorder.record(Event::TryEliminationArray);
+                match self
+                    .elimination_array
+                    .exchange_pop(&mut strategy, recorder)
+                {
+                    Ok(item) => break Some(item),
                     Err(()) => {}
                 };
             }
-        }
+        };
+
+        recorder.record(Event::FinishPop);
+
+        item
     }
 }
 
@@ -95,6 +128,7 @@ mod tests {
     use std::convert::TryInto;
     use std::sync::{Arc, Mutex};
     use std::thread;
+    use strategy::ExpRetryStrategy;
 
     #[derive(Clone, Debug)]
     enum Operation<T> {
@@ -262,5 +296,49 @@ mod tests {
                 handler.join().unwrap();
             }
         }
+    }
+
+    #[test]
+    fn event_recording() {
+        let stack = Arc::new(Stack::<Vec<u8>, ExpRetryStrategy, ExpRetryStrategy>::new());
+        // let stack = Arc::new(Stack::<Vec<u8>>::new());
+        let item = b"my_test_item".to_vec();
+        let item_count = 10_000;
+
+        let mut handlers = vec![];
+        let events = Arc::new(Mutex::new(vec![]));
+
+        for _ in 0..(num_cpus::get() / 2) {
+            let push_stack = stack.clone();
+            let item = item.clone();
+            let push_events = events.clone();
+            handlers.push(thread::spawn(move || {
+                let mut recorder = vec![];
+                for _ in 0..item_count {
+                    push_stack.instrumented_push(item.clone(), &mut recorder);
+                }
+
+                push_events.lock().unwrap().push(recorder);
+            }));
+
+            let pop_stack = stack.clone();
+            let pop_events = events.clone();
+            handlers.push(thread::spawn(move || {
+                let mut recorder = vec![];
+                for _ in 0..item_count {
+                    pop_stack.instrumented_pop(&mut recorder);
+                }
+
+                pop_events.lock().unwrap().push(recorder);
+            }))
+        }
+
+        for handler in handlers {
+            handler.join().unwrap();
+        }
+
+        let events = Arc::try_unwrap(events).unwrap().into_inner().unwrap();
+
+        statistic::print_report(events.into_iter().flatten().collect());
     }
 }

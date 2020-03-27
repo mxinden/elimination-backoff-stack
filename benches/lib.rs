@@ -54,7 +54,7 @@ fn bench_stacks(c: &mut Criterion) {
             let pop_stack = stack.clone();
             handlers.push(thread::spawn(move || {
                 for _ in 0..item_count {
-                    while pop_stack.pop().is_some() {}
+                    while pop_stack.pop().is_none() {}
                 }
             }))
         }

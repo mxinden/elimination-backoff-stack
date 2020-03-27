@@ -1,3 +1,4 @@
+use crate::event::{Event, EventRecorder, NoOpRecorder};
 use crossbeam::epoch::{self, Atomic, Owned};
 use std::mem::ManuallyDrop;
 use std::ptr;
@@ -23,7 +24,14 @@ impl<T> Exchanger<T> {
         }
     }
 
-    pub fn exchange_push<S: PushStrategy>(&self, item: T, strategy: &mut S) -> Result<(), T> {
+    pub(crate) fn exchange_push<S: PushStrategy, R: EventRecorder>(
+        &self,
+        item: T,
+        strategy: &mut S,
+        recorder: &mut R,
+    ) -> Result<(), T> {
+        recorder.record(Event::StartExchangerPush);
+
         let mut new_item = Owned::new(Item::Waiting(ManuallyDrop::new(item)));
 
         // TODO: Should we reuse this guard? Might be better performing when
@@ -123,7 +131,13 @@ impl<T> Exchanger<T> {
         }
     }
 
-    pub fn exchange_pop<S: PopStrategy>(&self, strategy: &mut S) -> Result<T, ()> {
+    pub(crate) fn exchange_pop<S: PopStrategy, R: EventRecorder>(
+        &self,
+        strategy: &mut S,
+        recorder: &mut R,
+    ) -> Result<T, ()> {
+        recorder.record(Event::StartExchangerPop);
+
         let guard = epoch::pin();
 
         while strategy.try_exchange() {
@@ -145,11 +159,9 @@ impl<T> Exchanger<T> {
                         // item) happening after.
                         .compare_and_set(current_item, Owned::new(Item::Busy), Acquire, &guard)
                     {
-                        Ok(_) => {
-                            unsafe {
-                                guard.defer_destroy(current_item);
-                                return Ok(ManuallyDrop::into_inner(ptr::read(&(*item))));
-                            }
+                        Ok(_) => unsafe {
+                            guard.defer_destroy(current_item);
+                            return Ok(ManuallyDrop::into_inner(ptr::read(&(*item))));
                         },
                         Err(_) => strategy.on_contention(),
                     }
@@ -216,14 +228,21 @@ mod tests {
         let exchanger = Arc::new(Exchanger::new());
 
         let t1_exchanger = exchanger.clone();
+        let mut t1_recorder = NoOpRecorder {};
         let mut push_strategy = DefaultStrategy::new();
-        let t1 =
-            thread::spawn(
-                move || while t1_exchanger.exchange_push((), &mut push_strategy).is_err() {},
-            );
+        let t1 = thread::spawn(move || {
+            while t1_exchanger
+                .exchange_push((), &mut push_strategy, &mut t1_recorder)
+                .is_err()
+            {}
+        });
 
+        let mut t2_recorder = NoOpRecorder {};
         let mut pop_strategy = DefaultStrategy::new();
-        while exchanger.exchange_pop(&mut pop_strategy).is_err() {}
+        while exchanger
+            .exchange_pop(&mut pop_strategy, &mut t2_recorder)
+            .is_err()
+        {}
 
         t1.join().unwrap();
     }
@@ -235,24 +254,40 @@ mod tests {
 
         let t1_exchanger = exchanger.clone();
         let mut t1_strategy = DefaultStrategy::new();
+        let mut t1_recorder = NoOpRecorder {};
         handlers.push(thread::spawn(move || {
-            while t1_exchanger.exchange_push((), &mut t1_strategy).is_err() {}
+            while t1_exchanger
+                .exchange_push((), &mut t1_strategy, &mut t1_recorder)
+                .is_err()
+            {}
         }));
 
         let t2_exchanger = exchanger.clone();
         let mut t2_strategy = DefaultStrategy::new();
+        let mut t2_recorder = NoOpRecorder {};
         handlers.push(thread::spawn(move || {
-            while t2_exchanger.exchange_push((), &mut t2_strategy).is_err() {}
+            while t2_exchanger
+                .exchange_push((), &mut t2_strategy, &mut t2_recorder)
+                .is_err()
+            {}
         }));
 
         let t3_exchanger = exchanger.clone();
         let mut t3_strategy = DefaultStrategy::new();
+        let mut t3_recorder = NoOpRecorder {};
         handlers.push(thread::spawn(move || {
-            while t3_exchanger.exchange_pop(&mut t3_strategy).is_err() {}
+            while t3_exchanger
+                .exchange_pop(&mut t3_strategy, &mut t3_recorder)
+                .is_err()
+            {}
         }));
 
         let mut t4_strategy = DefaultStrategy::new();
-        while exchanger.exchange_pop(&mut t4_strategy).is_err() {}
+        let mut t4_recorder = NoOpRecorder {};
+        while exchanger
+            .exchange_pop(&mut t4_strategy, &mut t4_recorder)
+            .is_err()
+        {}
 
         for handler in handlers.into_iter() {
             handler.join().unwrap();
