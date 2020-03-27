@@ -480,7 +480,7 @@ impl elimination_array::PushStrategy for ExpRetryStrategy {
     }
 
     fn num_exchangers(&mut self, total: usize) -> usize {
-        (2 << self.retry_exponent).min(total)
+        (1 << self.retry_exponent).min(total)
     }
 }
 
@@ -533,7 +533,7 @@ impl exchanger::PushStrategy for ExpRetryStrategy {
         if self.exchanger_retry_check_exchanged_cnt == 50 {
             // No pop operation exchanging with this push operation signals less
             // congestion. Thus decreasing the retry exponent.
-            self.retry_exponent = self.retry_exponent.saturating_sub(1);
+            self.retry_exponent = self.retry_exponent.saturating_sub(2);
 
             self.exchanger_retry_check_exchanged_cnt = 0;
 
@@ -565,6 +565,6 @@ impl exchanger::PopStrategy for ExpRetryStrategy {
     }
 
     fn on_no_contention(&mut self) {
-        self.retry_exponent = self.retry_exponent.saturating_sub(1);
+        self.retry_exponent = self.retry_exponent.saturating_sub(2);
     }
 }
