@@ -2,6 +2,7 @@ mod elimination_array;
 mod exchanger;
 pub mod strategy;
 mod treiber_stack;
+mod event;
 
 #[cfg(test)]
 mod statistic;
@@ -10,6 +11,7 @@ use elimination_array::EliminationArray;
 use std::marker::PhantomData;
 use strategy::DefaultStrategy;
 use treiber_stack::TreiberStack;
+use event::{Event, EventRecorder, NoOpRecorder};
 
 #[derive(Default)]
 pub struct Stack<T, PushS = DefaultStrategy, PopS = DefaultStrategy> {
@@ -110,32 +112,6 @@ pub trait PopStrategy: treiber_stack::PopStrategy + elimination_array::PopStrate
     /// elimination array next. Is called each time such elimination is
     /// possible.
     fn use_elimination_array(&mut self) -> bool;
-}
-
-#[derive(Clone, Debug)]
-enum Event {
-    StartPush,
-    StartPop,
-    TryStack,
-    TryEliminationArray,
-    FinishPush,
-    FinishPop,
-}
-
-trait EventRecorder {
-    fn record(&mut self, e: Event);
-}
-
-struct NoOpRecorder {}
-
-impl EventRecorder for NoOpRecorder {
-    fn record(&mut self, _event: Event) {}
-}
-
-impl EventRecorder for Vec<Event> {
-    fn record(&mut self, event: Event) {
-        self.push(event);
-    }
 }
 
 #[cfg(test)]
