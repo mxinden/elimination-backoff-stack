@@ -399,7 +399,7 @@ pub struct ExpRetryStrategy {
     exchanger_try_pop_exchange_cnt: usize,
 }
 
-const MAX_RETRY_EXPONENT: u8 = 10;
+const MAX_RETRY_EXPONENT: u8 = 5;
 
 impl ExpRetryStrategy {
     fn new() -> Self {
