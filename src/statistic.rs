@@ -1,15 +1,20 @@
-use crate::Event;
+use crate::event::{Event, print_padded};
 
 pub(crate) fn print_report(events: Vec<Event>) {
     let operations = split_by_operation(events);
-    println!("# operations: {:?}", operations.len());
+    println!("# operations: {:?}\n", operations.len());
 
     let (push_ops, pop_ops) = seperate_push_and_pop(operations);
     println!("# push ops: {:?}", push_ops.len());
-    println!("# pop ops: {:?}", pop_ops.len());
+    println!("# pop ops: {:?}\n", pop_ops.len());
 
     println!("longest push op: {:?}", longest_operation(&push_ops));
-    println!("longest pop op: {:?}", longest_operation(&pop_ops));
+    push_ops[index_longest_operation(&push_ops)].iter().for_each(print_padded);
+    println!("");
+
+    println!("longest pop op: {:?}\n", longest_operation(&pop_ops));
+    pop_ops[index_longest_operation(&pop_ops)].iter().for_each(print_padded);
+    println!("");
 }
 
 enum Operation {
@@ -57,4 +62,16 @@ fn longest_operation(operations: &Vec<Vec<Event>>) -> usize {
             acc
         }
     })
+}
+
+fn index_longest_operation(operations: &Vec<Vec<Event>>) -> usize {
+    let (index, _) = operations.iter().enumerate().fold((0, 0), |(acc_index, acc_len), (o_index, o)| {
+        if o.len() > acc_len {
+            (o_index, o.len())
+        } else {
+            (acc_index, acc_len)
+        }
+    });
+
+    index
 }
