@@ -94,7 +94,7 @@ pub trait PopStrategy: exchanger::PopStrategy {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::strategy::DefaultStrategy;
+    use crate::strategy::ExpRetryStrategy;
     use std::sync::Arc;
     use std::thread;
 
@@ -112,7 +112,7 @@ mod tests {
             handlers.push(thread::spawn(move || {
                 let mut recorder = NoOpRecorder {};
                 for _ in 0..item_count {
-                    let mut strategy = DefaultStrategy::new();
+                    let mut strategy = ExpRetryStrategy::new();
                     while elimination_array
                         .exchange_push((), &mut strategy, &mut recorder)
                         .is_err()
@@ -128,7 +128,7 @@ mod tests {
             handlers.push(thread::spawn(move || {
                 let mut recorder = NoOpRecorder {};
                 for _ in 0..item_count {
-                    let mut strategy = DefaultStrategy::new();
+                    let mut strategy = ExpRetryStrategy::new();
                     while elimination_array
                         .exchange_pop(&mut strategy, &mut recorder)
                         .is_err()

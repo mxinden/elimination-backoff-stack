@@ -10,11 +10,11 @@ mod statistic;
 use elimination_array::EliminationArray;
 use event::{Event, EventRecorder, NoOpRecorder};
 use std::marker::PhantomData;
-use strategy::DefaultStrategy;
+use strategy::ExpRetryStrategy;
 use treiber_stack::TreiberStack;
 
 #[derive(Default)]
-pub struct Stack<T, PushS = DefaultStrategy, PopS = DefaultStrategy> {
+pub struct Stack<T, PushS = ExpRetryStrategy, PopS = ExpRetryStrategy> {
     stack: TreiberStack<T>,
     elimination_array: EliminationArray<T>,
     phantom: PhantomData<(PushS, PopS)>,

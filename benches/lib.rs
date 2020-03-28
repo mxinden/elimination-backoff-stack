@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use elimination_backoff_stack::{
-    strategy::{ExpRetryStrategy, NoEliminationStrategy},
+    strategy::{BackAndForthStrategy, ExpRetryStrategy, NoEliminationStrategy},
     PopStrategy, PushStrategy, Stack as EliminationBackoffStack,
 };
 use std::sync::{Arc, Mutex};
@@ -87,36 +87,35 @@ fn bench_stacks(c: &mut Criterion) {
             })
         });
         group.bench_with_input(
-            BenchmarkId::new("Arc<EliminationBackoffStack<_>>", &i),
-            &i,
-            |b, i| {
-                b.iter(|| {
-                    let stack = Arc::new(EliminationBackoffStack::<_>::new());
-                    benchmark(stack, *i, item_count);
-                })
-            },
-        );
-        group.bench_with_input(
-            BenchmarkId::new("TreiberStack", i),
+            BenchmarkId::new("EliminationBackoffStack/back-and-forth", &i),
             &i,
             |b, i| {
                 b.iter(|| {
                     let stack = Arc::new(EliminationBackoffStack::<
                         _,
-                        NoEliminationStrategy,
-                        NoEliminationStrategy,
+                        BackAndForthStrategy,
+                        BackAndForthStrategy,
                     >::new());
                     benchmark(stack, *i, item_count);
                 })
             },
         );
+        group.bench_with_input(BenchmarkId::new("TreiberStack", i), &i, |b, i| {
+            b.iter(|| {
+                let stack = Arc::new(EliminationBackoffStack::<
+                    _,
+                    NoEliminationStrategy,
+                    NoEliminationStrategy,
+                >::new());
+                benchmark(stack, *i, item_count);
+            })
+        });
         group.bench_with_input(
             BenchmarkId::new("EliminationBackoffStack", i),
             &i,
             |b, i| {
                 b.iter(|| {
-                    let stack =
-                        Arc::new(EliminationBackoffStack::<_, ExpRetryStrategy, ExpRetryStrategy>::new());
+                    let stack = Arc::new(EliminationBackoffStack::<_>::new());
                     benchmark(stack, *i, item_count);
                 })
             },

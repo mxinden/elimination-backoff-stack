@@ -213,7 +213,7 @@ pub trait PopStrategy {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::strategy::DefaultStrategy;
+    use crate::strategy::ExpRetryStrategy;
     use std::sync::Arc;
     use std::thread;
 
@@ -223,7 +223,7 @@ mod tests {
 
         let t1_exchanger = exchanger.clone();
         let mut t1_recorder = NoOpRecorder {};
-        let mut push_strategy = DefaultStrategy::new();
+        let mut push_strategy = ExpRetryStrategy::new();
         let t1 = thread::spawn(move || {
             while t1_exchanger
                 .exchange_push((), &mut push_strategy, &mut t1_recorder)
@@ -232,7 +232,7 @@ mod tests {
         });
 
         let mut t2_recorder = NoOpRecorder {};
-        let mut pop_strategy = DefaultStrategy::new();
+        let mut pop_strategy = ExpRetryStrategy::new();
         while exchanger
             .exchange_pop(&mut pop_strategy, &mut t2_recorder)
             .is_err()
@@ -247,7 +247,7 @@ mod tests {
         let exchanger = Arc::new(Exchanger::new());
 
         let t1_exchanger = exchanger.clone();
-        let mut t1_strategy = DefaultStrategy::new();
+        let mut t1_strategy = ExpRetryStrategy::new();
         let mut t1_recorder = NoOpRecorder {};
         handlers.push(thread::spawn(move || {
             while t1_exchanger
@@ -257,7 +257,7 @@ mod tests {
         }));
 
         let t2_exchanger = exchanger.clone();
-        let mut t2_strategy = DefaultStrategy::new();
+        let mut t2_strategy = ExpRetryStrategy::new();
         let mut t2_recorder = NoOpRecorder {};
         handlers.push(thread::spawn(move || {
             while t2_exchanger
@@ -267,7 +267,7 @@ mod tests {
         }));
 
         let t3_exchanger = exchanger.clone();
-        let mut t3_strategy = DefaultStrategy::new();
+        let mut t3_strategy = ExpRetryStrategy::new();
         let mut t3_recorder = NoOpRecorder {};
         handlers.push(thread::spawn(move || {
             while t3_exchanger
@@ -276,7 +276,7 @@ mod tests {
             {}
         }));
 
-        let mut t4_strategy = DefaultStrategy::new();
+        let mut t4_strategy = ExpRetryStrategy::new();
         let mut t4_recorder = NoOpRecorder {};
         while exchanger
             .exchange_pop(&mut t4_strategy, &mut t4_recorder)

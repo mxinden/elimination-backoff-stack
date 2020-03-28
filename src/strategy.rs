@@ -1,7 +1,7 @@
 //! A Strategy is a way to configure the behavior of a [`super::Stack`] at
 //! compile time.
 //!
-//! By default a [`super::Stack`] uses the [`DefaultStrategy`]. Instead one can
+//! By default a [`super::Stack`] uses the [`ExpRetryStrategy`]. Instead one can
 //! initiate a [`super::Stack`] with e.g. the [`NoEliminationStrategy`] to get
 //! a classic Treiber stack only.
 //!
@@ -26,10 +26,8 @@ use crate::{
 };
 
 /// Represents the default strategy aiming for good average performance.
-//
-// TODO: Rename this to BackAndForthStrategy.
 #[derive(Default)]
-pub struct DefaultStrategy {
+pub struct BackAndForthStrategy {
     // TODO: usize is a bit big on 64bit machines, no?
     treiber_stack_push_cnt: usize,
     treiber_stack_pop_cnt: usize,
@@ -42,15 +40,15 @@ pub struct DefaultStrategy {
     exchanger_try_pop_cnt: usize,
 }
 
-impl DefaultStrategy {
+impl BackAndForthStrategy {
     pub fn new() -> Self {
-        DefaultStrategy::default()
+        BackAndForthStrategy::default()
     }
 }
 
-impl StackPushStrategy for DefaultStrategy {
+impl StackPushStrategy for BackAndForthStrategy {
     fn new() -> Self {
-        DefaultStrategy::new()
+        BackAndForthStrategy::new()
     }
 
     fn use_elimination_array(&mut self) -> bool {
@@ -58,9 +56,9 @@ impl StackPushStrategy for DefaultStrategy {
     }
 }
 
-impl StackPopStrategy for DefaultStrategy {
+impl StackPopStrategy for BackAndForthStrategy {
     fn new() -> Self {
-        DefaultStrategy::new()
+        BackAndForthStrategy::new()
     }
 
     fn use_elimination_array(&mut self) -> bool {
@@ -68,7 +66,7 @@ impl StackPopStrategy for DefaultStrategy {
     }
 }
 
-impl treiber_stack::PushStrategy for DefaultStrategy {
+impl treiber_stack::PushStrategy for BackAndForthStrategy {
     fn try_push(&mut self) -> bool {
         if self.treiber_stack_push_cnt == 1 {
             self.treiber_stack_push_cnt = 0;
@@ -80,7 +78,7 @@ impl treiber_stack::PushStrategy for DefaultStrategy {
     }
 }
 
-impl treiber_stack::PopStrategy for DefaultStrategy {
+impl treiber_stack::PopStrategy for BackAndForthStrategy {
     fn try_pop(&mut self) -> bool {
         if self.treiber_stack_pop_cnt == 1 {
             self.treiber_stack_pop_cnt = 0;
@@ -92,7 +90,7 @@ impl treiber_stack::PopStrategy for DefaultStrategy {
     }
 }
 
-impl elimination_array::PushStrategy for DefaultStrategy {
+impl elimination_array::PushStrategy for BackAndForthStrategy {
     fn try_push(&mut self) -> bool {
         if self.elimination_array_push_cnt == 1 {
             self.elimination_array_push_cnt = 0;
@@ -104,7 +102,7 @@ impl elimination_array::PushStrategy for DefaultStrategy {
     }
 }
 
-impl elimination_array::PopStrategy for DefaultStrategy {
+impl elimination_array::PopStrategy for BackAndForthStrategy {
     fn try_pop(&mut self) -> bool {
         if self.elimination_array_pop_cnt == 1 {
             self.elimination_array_pop_cnt = 0;
@@ -116,7 +114,7 @@ impl elimination_array::PopStrategy for DefaultStrategy {
     }
 }
 
-impl exchanger::PushStrategy for DefaultStrategy {
+impl exchanger::PushStrategy for BackAndForthStrategy {
     fn try_start_exchange(&mut self) -> bool {
         if self.exchanger_start_push_cnt > 10 {
             self.exchanger_start_push_cnt = 0;
@@ -138,7 +136,7 @@ impl exchanger::PushStrategy for DefaultStrategy {
     }
 }
 
-impl exchanger::PopStrategy for DefaultStrategy {
+impl exchanger::PopStrategy for BackAndForthStrategy {
     fn try_exchange(&mut self) -> bool {
         if self.exchanger_try_pop_cnt > 10 {
             self.exchanger_try_pop_cnt = 0;
@@ -263,7 +261,7 @@ pub struct ExpRetryStrategy {
 const MAX_RETRY_EXPONENT: u8 = 5;
 
 impl ExpRetryStrategy {
-    fn new() -> Self {
+    pub fn new() -> Self {
         ExpRetryStrategy::default()
     }
 }
