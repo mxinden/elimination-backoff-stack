@@ -40,12 +40,25 @@ The result is a lock-free stack that is both _linearizable_ and _parallel_.
 
 ### Silly Benchmark
 
-Criterion test comparing `Arc<Mutex<Vec<_>>>` with
-`elimination_backoff_stack::Stack<_>` on 1, 2, 3, 4 and 8 threads, pushing and
-popping the string "my_test_item" 10_000 times.
+Criterion test comparing:
+
+- `Arc<Mutex<Vec<_>>>`
+
+- `TreiberStack`
+
+- `EliminationBackoffStack` - Simply switching back and forth between stack and
+elimination array.
+
+- `EliminationBackoffStack` - Exponentially backing off from the stack to the
+elimination array both in space and time.
 
 
-![Comparing `Arc<Mutex<Vec<_>>>` with `elimination_backoff_stack::Stack`.](./.assets/lines.svg)
+X-Axis: Number of competing threads.
+
+Y-Axis: Average time it took all threads to push and pop 1000 items each.
+
+
+![Performance](./.assets/lines.svg)
 
 
 [1] Treiber, R. Kent. Systems programming: Coping with parallelism. New York:
