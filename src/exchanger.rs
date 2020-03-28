@@ -77,12 +77,6 @@ impl<T> Exchanger<T> {
         }
 
         loop {
-            // TODO: Don't yield to the OS, but busy loop for a bit (can happen
-            // in the strategy).
-            //
-            // See parking_lot spinwait.rs
-            std::thread::yield_now();
-
             // Assume using `Relaxed` is correct, given that the actual
             // synchronization happens further below with `compare_and_set`.
             let current_item = self.item.load(Relaxed, &guard);

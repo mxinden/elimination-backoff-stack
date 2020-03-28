@@ -526,11 +526,15 @@ impl exchanger::PushStrategy for ExpRetryStrategy {
 
     // Wait for a pop operation for up to 50 atomic loads.
     fn retry_check_exchanged(&mut self) -> bool {
-        // TODO: Busy loop a bit here. Do so exponentially more on each
-        // iteration based on `self.retry_exponent`.
-        //
-        // See parking_lot spinwait.rs
-        if self.exchanger_retry_check_exchanged_cnt == 50 {
+        // TODO: Should this grow exponentially with contention? 1 on 8 threads
+        // and 100 for 128 threads worked well in the past.
+        for _ in 0..(self.retry_exponent) {
+            std::sync::atomic::spin_loop_hint();
+        }
+
+        // TODO: Should this grow exponentially with contention? 10 on 8 threads
+        // and 50 on 128 threads worked well in the past.
+        if self.exchanger_retry_check_exchanged_cnt == (10 * self.retry_exponent) as usize {
             // No pop operation exchanging with this push operation signals less
             // congestion. Thus decreasing the retry exponent.
             self.retry_exponent = self.retry_exponent.saturating_sub(2);
