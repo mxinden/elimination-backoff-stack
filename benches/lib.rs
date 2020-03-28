@@ -65,20 +65,30 @@ fn bench_stacks(c: &mut Criterion) {
     }
 
     let mut group = c.benchmark_group("stacks");
+    group.sample_size(10);
 
     let item_count = 1_000;
-    // group.throughput(Throughput::Elements(item_count));
 
-    for i in [1, 2, 4, 8].iter() {
-        group.bench_with_input(BenchmarkId::new("Arc<Mutex<Vec<_>>", i), i, |b, i| {
+    let iterations = {
+        let mut iterations = vec![];
+        let mut i = 1;
+        while i <= num_cpus::get() {
+            iterations.push(i);
+            i *= 2;
+        }
+        iterations
+    };
+
+    for i in iterations {
+        group.bench_with_input(BenchmarkId::new("Arc<Mutex<Vec<_>>", i), &i, |b, i| {
             b.iter(|| {
                 let stack = Arc::new(Mutex::new(vec![]));
                 benchmark(stack, *i, item_count);
             })
         });
         group.bench_with_input(
-            BenchmarkId::new("Arc<EliminationBackoffStack<_>>", i),
-            i,
+            BenchmarkId::new("Arc<EliminationBackoffStack<_>>", &i),
+            &i,
             |b, i| {
                 b.iter(|| {
                     let stack = Arc::new(EliminationBackoffStack::<_>::new());
@@ -87,8 +97,8 @@ fn bench_stacks(c: &mut Criterion) {
             },
         );
         group.bench_with_input(
-            BenchmarkId::new("Arc<EliminationBackoffStack<_, NoEliminationStrategy>>", i),
-            i,
+            BenchmarkId::new("TreiberStack", i),
+            &i,
             |b, i| {
                 b.iter(|| {
                     let stack = Arc::new(EliminationBackoffStack::<
@@ -102,7 +112,7 @@ fn bench_stacks(c: &mut Criterion) {
         );
         group.bench_with_input(
             BenchmarkId::new("Arc<EliminationBackoffStack<_, RetryStrategy>>", i),
-            i,
+            &i,
             |b, i| {
                 b.iter(|| {
                     let stack =
@@ -112,8 +122,8 @@ fn bench_stacks(c: &mut Criterion) {
             },
         );
         group.bench_with_input(
-            BenchmarkId::new("Arc<EliminationBackoffStack<_, ExpRetryStrategy>>", i),
-            i,
+            BenchmarkId::new("EliminationBackoffStack", i),
+            &i,
             |b, i| {
                 b.iter(|| {
                     let stack =
