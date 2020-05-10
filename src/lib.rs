@@ -130,6 +130,13 @@ mod tests {
     use std::thread;
     use strategy::ExpRetryStrategy;
 
+    // TODO: Say each thread adds monotonically increasing numbers onto the
+    // stack. Add a test that ensures that after witnessing an empty stack, one
+    // can not see anything lower than one popped off from other threads or
+    // pushed onto the stack oneself before.
+    //
+    // A bit like quiescent consistency.
+
     #[derive(Clone, Debug)]
     enum Operation<T> {
         Push(T),
